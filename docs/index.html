@@ -365,10 +365,10 @@ const UPGRADES = [
     fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
   { id: "shieldUp", name: "Shield", icon: "\u{1F6E1}",
     blurb: "Invincibility power-up lasts longer",
-    fx: l => (5 + 0.5 * l).toFixed(1) + "s" },
+    fx: l => (3 + 0.25 * l).toFixed(1) + "s" },
   { id: "twinUp", name: "Twin Cannon", icon: "\u{2795}",
     blurb: "Twin cannon power-up lasts longer",
-    fx: l => (7 + 0.5 * l).toFixed(1) + "s" },
+    fx: l => (4 + 0.3 * l).toFixed(1) + "s" },
   { id: "spreadUp", name: "Spread Shot", icon: "\u{1F3AF}",
     blurb: "Spread power-up fires more angled bullets",
     fx: l => (1 + Math.floor(l / 5)) + " pairs" },
@@ -380,10 +380,10 @@ const UPGRADES = [
 /* Power-ups dropped by mystery "?" balls. Timed buffs; upgrades above
    improve their duration or power. */
 const POWERUPS = {
-  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 5 + 0.5 * upgLevel("shieldUp") },
-  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 7 + 0.5 * upgLevel("twinUp") },
-  spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855", dur: () => 8 },
-  coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0", dur: () => 8 },
+  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 3 + 0.25 * upgLevel("shieldUp") },
+  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 4 + 0.3 * upgLevel("twinUp") },
+  spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855", dur: () => 5 },
+  coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0", dur: () => 5 },
 };
 
 /* Difficulty scales how fast balls fall. Bounce heights stay the same. */
