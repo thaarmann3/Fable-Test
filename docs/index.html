@@ -748,7 +748,8 @@ function startGame(levelNumber) {
   show("game");
   document.getElementById("hudLevel").textContent = (game.cfg.isBoss ? "BOSS " : "LEVEL ") + levelNumber;
   document.getElementById("hintMap").textContent = game.theme.name.toUpperCase() + " MAP" +
-    (state.streak > 0 ? " • \u{1F525}" + state.streak + " (×" + streakMult(state.streak + 1).toFixed(1) + " if you win)" : "");
+    (state.streak > 0 ? " • \u{1F525}" + state.streak + " (×" + streakMult(state.streak + 1).toFixed(1) + " if you win)" : "") +
+    (state.streak >= 3 ? " • BONUS CANNON" : "");
   document.getElementById("progressFill").style.width = "0%";
   document.getElementById("gameCoins").textContent = shortNum(state.coins);
   document.getElementById("startHint").classList.add("active");
@@ -774,6 +775,12 @@ function newGame(levelNumber) {
     powerups: [],
     buffs: { shield: 0, twin: 0, spread: 0, coinx: 0 },
     mysterySpawned: 0,
+    // Win 3+ levels in a row: a bonus mini-cannon fires homing missiles,
+    // faster with longer streaks.
+    bonus: state.streak >= 3,
+    missiles: [],
+    missileAcc: 0,
+    missileInt: Math.max(1.2, 3 - 0.25 * (state.streak - 3)),
     phase: "ready",            // ready | running | won | lost
     paused: false,
     balls: [],
@@ -860,6 +867,7 @@ function updateCoins(dt) {
 }
 
 const twinX = g => Math.min(Math.max(g.cannonX + (g.cannonX > W / 2 ? -100 : 100), 34), W - 34);
+const bonusX = g => Math.min(Math.max(g.cannonX - 80, 26), W - 26);
 
 function updatePowerups(dt) {
   const g = game;
@@ -1154,6 +1162,45 @@ function update(dt) {
   }
   g.bullets = keep;
 
+  // Bonus cannon: homing missiles seek the nearest ball, 5x bullet damage.
+  if (g.bonus) {
+    g.missileAcc += dt;
+    if (g.missileAcc >= g.missileInt && g.balls.length) {
+      g.missileAcc = 0;
+      g.missiles.push({ x: bonusX(g), y: GROUND_H + 46, vx: 0, vy: 300, t: 6 });
+    }
+    const keepM = [];
+    for (const mi of g.missiles) {
+      mi.t -= dt;
+      let best = null, bd = 1e18;
+      for (const ball of g.balls) {
+        const dx = ball.x - mi.x, dy = ball.y - mi.y, d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = ball; }
+      }
+      if (best) {
+        const len = Math.sqrt(bd) || 1;
+        mi.vx += ((best.x - mi.x) / len) * 1400 * dt;
+        mi.vy += ((best.y - mi.y) / len) * 1400 * dt;
+        const sp = Math.hypot(mi.vx, mi.vy) || 1;
+        mi.vx = mi.vx / sp * 420;
+        mi.vy = mi.vy / sp * 420;
+      }
+      mi.x += mi.vx * dt;
+      mi.y += mi.vy * dt;
+      let hit = false;
+      if (best) {
+        const dx = best.x - mi.x, dy = best.y - mi.y, reach = best.r + 8;
+        if (dx * dx + dy * dy <= reach * reach) {
+          best.hp -= g.lo.damage * 5;
+          burst(mi.x, mi.y, "#ffaa44", 14);
+          hit = true;
+        }
+      }
+      if (!hit && mi.t > 0 && mi.y > -30 && mi.y < H + 40 && mi.x > -30 && mi.x < W + 30) keepM.push(mi);
+    }
+    g.missiles = keepM;
+  }
+
   // Pop dead balls, split big tiers.
   const survivors = [], children = [];
   let popped = false;
@@ -1305,6 +1352,30 @@ function draw() {
     ctx.lineWidth = 2;
     ctx.strokeStyle = "rgba(0,0,0,0.3)";
     ctx.stroke();
+  }
+
+  // Streak bonus cannon (mini) and its missiles.
+  if (g.bonus && g.phase !== "lost") {
+    const bxc = bonusX(g), gy = sy(GROUND_H);
+    ctx.save();
+    ctx.translate(bxc, gy);
+    ctx.scale(0.65, 0.65);
+    ctx.translate(-bxc, -gy);
+    drawCannon(bxc, gy, g.cannon, g.wheel);
+    ctx.restore();
+  }
+  ctx.fillStyle = "#ffb056";
+  for (const mi of g.missiles) {
+    ctx.save();
+    ctx.translate(mi.x, sy(mi.y));
+    ctx.rotate(Math.atan2(mi.vx, mi.vy));
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(5, 6);
+    ctx.lineTo(-5, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   // Cannon (plus twin cannon and shield ring while those buffs are live).
