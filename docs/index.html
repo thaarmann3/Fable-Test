@@ -291,7 +291,7 @@ const state = loadState();
 function loadState() {
   const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal",
                   equipped: { cannon: "classic", bullet: "standard", wheel: "standard" },
-                  owned: {} };
+                  owned: {}, streak: 0 };
   if (!storageOK) return fresh;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -323,6 +323,7 @@ function loadState() {
         wheel: eq.wheel || "standard",
       },
       owned,
+      streak: Math.max(0, s.streak | 0),
     };
   } catch (e) { return fresh; }
 }
@@ -343,6 +344,10 @@ const coinMultiplier = l => 1.0 + 0.20 * l;
 /* Upgrades are infinite: no caps, and every tier N costs the same
    regardless of which upgrade it is. */
 const tierCost = l => Math.round(20 * Math.pow(1.28, l));
+
+/* Winning levels back to back multiplies the coins you earn:
+   +20% per consecutive win, up to x3. A death resets it. */
+const streakMult = s => 1 + 0.2 * Math.min(Math.max(0, s - 1), 10);
 
 const UPGRADES = [
   { id: "firepower", name: "Firepower", icon: "\u{1F525}",
@@ -518,6 +523,7 @@ document.getElementById("resetBtn").onclick = () => {
     state.coins = 0; state.highest = 1; state.completed = {}; state.upg = {};
     state.equipped = { cannon: "classic", bullet: "standard", wheel: "standard" };
     state.owned = {};
+    state.streak = 0;
     saveState(); renderMenu();
   }
 };
@@ -720,7 +726,8 @@ function startGame(levelNumber) {
   game = newGame(levelNumber);
   show("game");
   document.getElementById("hudLevel").textContent = (game.cfg.isBoss ? "BOSS " : "LEVEL ") + levelNumber;
-  document.getElementById("hintMap").textContent = game.theme.name.toUpperCase() + " MAP";
+  document.getElementById("hintMap").textContent = game.theme.name.toUpperCase() + " MAP" +
+    (state.streak > 0 ? " • \u{1F525}" + state.streak + " (×" + streakMult(state.streak + 1).toFixed(1) + " if you win)" : "");
   document.getElementById("progressFill").style.width = "0%";
   document.getElementById("gameCoins").textContent = shortNum(state.coins);
   document.getElementById("startHint").classList.add("active");
@@ -850,13 +857,18 @@ function leaveGame() {
 /* ---------- end of run ---------- */
 
 function finishRun(victory) {
-  let reward = 0;
+  let firstClear = 0, mult = 1, bonus = 0;
   if (victory) {
-    reward = state.completed[game.level] ? game.cfg.replayReward : game.cfg.firstReward;
+    state.streak = (state.streak | 0) + 1;
+    mult = streakMult(state.streak);
+    bonus = Math.round(game.runCoins * (mult - 1));
+    if (!state.completed[game.level]) firstClear = 30 + 15 * game.level;
     state.completed[game.level] = true;
     state.highest = Math.max(state.highest, game.level + 1);
+  } else {
+    state.streak = 0;
   }
-  state.coins += game.runCoins + reward;
+  state.coins += game.runCoins + bonus + firstClear;
   saveState();
 
   document.getElementById("resultTitle").textContent =
@@ -864,7 +876,12 @@ function finishRun(victory) {
   document.getElementById("resultTitle").style.color = victory ? "var(--yellow)" : "#f25555";
 
   let stats = '<div class="row"><span>Coins collected</span><b>+' + shortNum(game.runCoins) + "</b></div>";
-  if (victory) stats += '<div class="row"><span>Level reward</span><b>+' + shortNum(reward) + "</b></div>";
+  if (victory) {
+    stats += '<div class="row"><span>Streak ' + state.streak + " bonus (×" + mult.toFixed(1) + ")</span><b>+" + shortNum(bonus) + "</b></div>";
+    if (firstClear) stats += '<div class="row"><span>First clear</span><b>+' + shortNum(firstClear) + "</b></div>";
+  } else {
+    stats += '<div class="row"><span>Win streak</span><b>lost</b></div>';
+  }
   stats += '<hr><div class="row"><span>Total coins</span><b>' + shortNum(state.coins) + "</b></div>";
   document.getElementById("resultStats").innerHTML = stats;
 
