@@ -2,6 +2,8 @@
 
 A fully offline, local Ball Blast clone for iPhone, built with SwiftUI + SpriteKit. No network access, no ads, no analytics — all progress is saved on-device.
 
+> **No Mac handy?** There is also a complete single-file web version at [`docs/index.html`](docs/index.html) with the same gameplay, endless levels, upgrades, and on-device saves. Host it anywhere (GitHub Pages works: Settings → Pages → deploy from branch → `/docs`), open it in Safari on your iPhone, and use **Share → Add to Home Screen** to install it like an app.
+
 ## Gameplay
 
 - Drag anywhere to move the cannon; it fires automatically.

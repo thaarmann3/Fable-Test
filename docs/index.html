@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ball Blast">
+<title>Ball Blast</title>
+<style>
+  :root {
+    --bg1: #1a1c33; --bg2: #0d0d1a;
+    --panel: rgba(255,255,255,0.08);
+    --panel2: rgba(255,255,255,0.12);
+    --yellow: #ffcc26;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%; overflow: hidden; background: var(--bg2);
+    font-family: -apple-system, "SF Pro Rounded", "Avenir Next", system-ui, sans-serif;
+    color: #fff; user-select: none; -webkit-user-select: none;
+    touch-action: none; overscroll-behavior: none;
+  }
+  .screen {
+    position: fixed; inset: 0; display: none; flex-direction: column;
+    background: linear-gradient(var(--bg1), var(--bg2));
+    padding: calc(var(--safe-top) + 14px) 20px calc(var(--safe-bottom) + 14px);
+  }
+  .screen.active { display: flex; }
+  .scroll { overflow-y: auto; touch-action: pan-y; flex: 1; }
+
+  h1.logo { text-align: center; font-size: 54px; font-weight: 900; line-height: 1.02; letter-spacing: 1px; }
+  h1.logo .a { color: var(--yellow); display: block; }
+  h1.logo .b { color: #fff; display: block; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel2); border-radius: 999px;
+    padding: 9px 16px; font-weight: 800; font-size: 17px;
+  }
+  .coin { width: 18px; height: 18px; border-radius: 50%; background: var(--yellow);
+    display: inline-block; box-shadow: inset -2px -2px 0 rgba(0,0,0,0.25); }
+  .coin::after { content: "$"; display: block; text-align: center; font-size: 12px;
+    font-weight: 900; color: rgba(0,0,0,0.55); line-height: 18px; }
+
+  .btn {
+    display: block; width: 100%; border: 0; border-radius: 15px;
+    padding: 15px; font-size: 18px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--panel2); cursor: pointer;
+  }
+  .btn.primary { background: var(--yellow); color: #111; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; transform: none; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+
+  .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .topbar .back {
+    width: 40px; height: 40px; border-radius: 50%; border: 0; flex: 0 0 auto;
+    background: var(--panel2); color: #fff; font-size: 18px; font-weight: 800; cursor: pointer;
+  }
+  .topbar h2 { flex: 1; text-align: center; font-size: 19px; font-weight: 900; }
+  .topbar .spacer { width: 40px; flex: 0 0 auto; }
+
+  /* Level grid */
+  #levelGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; padding-bottom: 20px; }
+  .lvl {
+    border: 0; border-radius: 14px; min-height: 68px; background: var(--panel2);
+    color: #fff; font-size: 20px; font-weight: 900; font-family: inherit; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .lvl.locked { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); font-size: 17px; }
+  .lvl.current { background: var(--yellow); color: #111; }
+  .lvl .sub { font-size: 11px; font-weight: 700; }
+  .lvl .crown { font-size: 12px; }
+
+  /* Upgrade cards */
+  .card {
+    display: flex; align-items: center; gap: 13px;
+    background: var(--panel); border-radius: 17px; padding: 13px; margin-bottom: 12px;
+  }
+  .card .icon {
+    width: 50px; height: 50px; border-radius: 13px; flex: 0 0 auto;
+    background: rgba(255,204,38,0.15); display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .card .info { flex: 1; min-width: 0; }
+  .card .name { font-size: 16px; font-weight: 900; }
+  .card .lv { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.45); margin-left: 5px; }
+  .card .blurb { font-size: 11.5px; color: rgba(255,255,255,0.55); margin: 2px 0; }
+  .card .fx { font-size: 12.5px; font-weight: 800; color: rgba(255,255,255,0.8); }
+  .card .fx .next { color: var(--yellow); }
+  .card .buy {
+    border: 0; border-radius: 12px; width: 66px; height: 46px; flex: 0 0 auto;
+    font-family: inherit; font-size: 13px; font-weight: 900; cursor: pointer;
+    background: var(--yellow); color: #111;
+  }
+  .card .buy.cant { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); }
+
+  /* Game */
+  #gameScreen { padding: 0; background: #14172a; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #hud {
+    position: absolute; left: 0; right: 0; top: var(--safe-top);
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px; pointer-events: none;
+  }
+  #hud > * { pointer-events: auto; }
+  #pauseBtn {
+    width: 38px; height: 38px; border-radius: 50%; border: 0; flex: 0 0 auto;
+    background: rgba(255,255,255,0.14); color: #fff; font-size: 14px; cursor: pointer;
+  }
+  #hudMid { flex: 1; pointer-events: none; }
+  #hudLevel { text-align: center; font-size: 13px; font-weight: 900; opacity: 0.9; margin-bottom: 5px; }
+  #progressTrack { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.15); overflow: hidden; }
+  #progressFill { height: 100%; width: 0%; border-radius: 999px; background: var(--yellow); transition: width 0.15s; }
+  #hudCoins { font-size: 15px; }
+
+  .overlay {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 20px;
+    background: rgba(0,0,0,0.78); padding: 30px;
+    padding-top: calc(var(--safe-top) + 30px); padding-bottom: calc(var(--safe-bottom) + 30px);
+  }
+  .overlay.active { display: flex; }
+  .overlay h2 { font-size: 31px; font-weight: 900; text-align: center; }
+  .overlay .stack { width: 100%; max-width: 340px; }
+  #resultStats {
+    width: 100%; max-width: 340px; background: var(--panel);
+    border-radius: 15px; padding: 16px; font-size: 15px; font-weight: 700;
+  }
+  #resultStats .row { display: flex; justify-content: space-between; padding: 4px 0; }
+  #resultStats .row b { color: var(--yellow); font-weight: 900; }
+  #resultStats hr { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 7px 0; }
+
+  #startHint {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px; pointer-events: none;
+  }
+  #startHint.active { display: flex; }
+  #startHint .big { font-size: 29px; font-weight: 900; }
+  #startHint .small { font-size: 14px; font-weight: 600; opacity: 0.7; }
+
+  .center { text-align: center; }
+  .reset { background: none; border: 0; color: rgba(255,255,255,0.35);
+    font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 10px; }
+  .statline { color: rgba(255,255,255,0.55); font-size: 13px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- MENU -->
+<div id="menuScreen" class="screen active">
+  <div style="flex:1"></div>
+  <h1 class="logo"><span class="a">BALL</span><span class="b">BLAST</span></h1>
+  <div class="center" style="margin-top:16px"><span class="pill"><span class="coin"></span><span id="menuCoins">0</span></span></div>
+  <div class="center" style="margin-top:10px"><span class="statline" id="menuStats"></span></div>
+  <div style="flex:1"></div>
+  <div class="stack" style="max-width:340px;width:100%;margin:0 auto">
+    <button class="btn primary" id="playBtn" style="padding:18px">
+      <div style="font-size:23px;font-weight:900">PLAY</div>
+      <div style="font-size:12px;font-weight:700;opacity:0.7" id="playSub">Level 1</div>
+    </button>
+    <button class="btn" id="levelsBtn">&#9638;&nbsp; Levels</button>
+    <button class="btn" id="upgradesBtn">&#8679;&nbsp; Upgrades</button>
+  </div>
+  <div style="flex:1"></div>
+  <div class="center"><button class="reset" id="resetBtn">Reset Progress</button></div>
+</div>
+
+<!-- LEVEL SELECT -->
+<div id="levelsScreen" class="screen">
+  <div class="topbar">
+    <button class="back" data-nav="menu">&#8592;</button>
+    <h2>Levels</h2>
+    <div class="spacer"></div>
+  </div>
+  <div class="scroll"><div id="levelGrid"></div></div>
+</div>
+
+<!-- UPGRADES -->
+<div id="upgradesScreen" class="screen">
+  <div class="topbar">
+    <button class="back" data-nav="back">&#8592;</button>
+    <h2>Upgrades</h2>
+    <div class="spacer"></div>
+  </div>
+  <div class="center" style="margin-bottom:12px"><span class="pill"><span class="coin"></span><span id="shopCoins">0</span></span></div>
+  <div class="scroll"><div id="upgradeList"></div></div>
+</div>
+
+<!-- GAME -->
+<div id="gameScreen" class="screen">
+  <canvas id="canvas"></canvas>
+  <div id="hud">
+    <button id="pauseBtn">&#10074;&#10074;</button>
+    <div id="hudMid">
+      <div id="hudLevel">LEVEL 1</div>
+      <div id="progressTrack"><div id="progressFill"></div></div>
+    </div>
+    <span class="pill" id="hudCoins"><span class="coin"></span><span id="gameCoins">0</span></span>
+  </div>
+  <div id="startHint">
+    <div class="big">TAP TO START</div>
+    <div class="small">Drag anywhere to move the cannon</div>
+  </div>
+  <div class="overlay" id="pauseOverlay">
+    <h2>PAUSED</h2>
+    <div class="stack">
+      <button class="btn primary" id="resumeBtn">Resume</button>
+      <button class="btn" id="restartBtn">Restart Level</button>
+      <button class="btn" id="quitBtn">Main Menu</button>
+    </div>
+  </div>
+  <div class="overlay" id="resultOverlay">
+    <h2 id="resultTitle">LEVEL CLEAR!</h2>
+    <div id="resultStats"></div>
+    <div class="stack" id="resultButtons"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================== Persistence ============================== */
+
+const SAVE_KEY = "ballblast.save.v1";
+let storageOK = true;
+try { localStorage.setItem("__t", "1"); localStorage.removeItem("__t"); }
+catch (e) { storageOK = false; }
+
+const state = loadState();
+
+function loadState() {
+  const fresh = { coins: 0, highest: 1, completed: {}, upg: {} };
+  if (!storageOK) return fresh;
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return fresh;
+    const s = JSON.parse(raw);
+    return {
+      coins: Math.max(0, s.coins | 0),
+      highest: Math.max(1, s.highest | 0),
+      completed: s.completed || {},
+      upg: s.upg || {},
+    };
+  } catch (e) { return fresh; }
+}
+
+function saveState() {
+  if (!storageOK) return;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+/* ============================== Balance ============================== */
+
+const COINS_PER_HP = 0.4;
+const bulletDamage   = l => 1 + l;
+const shotsPerSecond = l => 3.0 + 0.35 * l;
+const bulletStreams  = l => 1 + l;
+const coinMultiplier = l => 1.0 + 0.12 * l;
+
+const UPGRADES = [
+  { id: "firepower", name: "Firepower",  icon: "\u{1F525}", blurb: "Each bullet deals more damage",
+    max: 40, base: 30,  growth: 1.42, fx: l => bulletDamage(l) + " dmg" },
+  { id: "fireRate",  name: "Fire Rate",  icon: "⚡",    blurb: "Shoot faster",
+    max: 25, base: 25,  growth: 1.45, fx: l => shotsPerSecond(l).toFixed(1) + " shots/s" },
+  { id: "multiShot", name: "Multi-Shot", icon: "\u{1F500}", blurb: "Fire extra bullet streams",
+    max: 4,  base: 400, growth: 5.0,  fx: l => bulletStreams(l) + " streams" },
+  { id: "coinBonus", name: "Coin Bonus", icon: "\u{1F4B0}", blurb: "Balls drop more coins",
+    max: 20, base: 60,  growth: 1.6,  fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
+];
+
+const upgLevel = id => state.upg[id] | 0;
+const upgCost = u => {
+  const l = upgLevel(u.id);
+  return l >= u.max ? null : Math.max(u.base, Math.round(u.base * Math.pow(u.growth, l)));
+};
+
+function loadout() {
+  return {
+    damage: bulletDamage(upgLevel("firepower")),
+    shotsPerSec: shotsPerSecond(upgLevel("fireRate")),
+    streams: bulletStreams(upgLevel("multiShot")),
+    coinMult: coinMultiplier(upgLevel("coinBonus")),
+  };
+}
+
+/* ============================== Levels (endless) ============================== */
+
+function levelConfig(n) {
+  n = Math.max(1, n | 0);
+  const isBoss = n % 10 === 0;
+  const baseHP = Math.max(5, Math.floor(5.5 * Math.pow(n, 1.3)));
+  if (isBoss) {
+    return { number: n, count: Math.min(1 + Math.floor(n / 15), 6), tier: 3, hp: baseHP * 4,
+             interval: 7.0, isBoss, firstReward: 80 + 45 * n, replayReward: 12 + 5 * n };
+  }
+  let tier = 2;
+  if (n < 4) tier = 1;
+  else if (n % 7 === 0 && n >= 8) tier = 3;
+  return { number: n, count: Math.min(3 + Math.floor((n - 1) / 2), 12), tier, hp: baseHP,
+           interval: Math.max(2.0, 4.6 - 0.07 * n), isBoss, firstReward: 50 + 28 * n, replayReward: 8 + 4 * n };
+}
+
+function totalHPPool(cfg) {
+  let per = 0, hp = cfg.hp, count = 1;
+  for (let t = 0; t <= cfg.tier; t++) { per += hp * count; hp = Math.max(1, hp >> 1); count *= 2; }
+  return Math.max(1, per * cfg.count);
+}
+
+function shortNum(v) {
+  if (v < 1000) return "" + v;
+  if (v < 1e6) { const k = v / 1000; return k < 10 ? k.toFixed(1) + "K" : Math.round(k) + "K"; }
+  const m = v / 1e6; return m < 10 ? m.toFixed(1) + "M" : Math.round(m) + "M";
+}
+
+/* ============================== Navigation ============================== */
+
+const screens = {
+  menu: document.getElementById("menuScreen"),
+  levels: document.getElementById("levelsScreen"),
+  upgrades: document.getElementById("upgradesScreen"),
+  game: document.getElementById("gameScreen"),
+};
+let currentScreen = "menu";
+let upgradesReturnTo = "menu";
+
+function show(name) {
+  for (const k in screens) screens[k].classList.toggle("active", k === name);
+  currentScreen = name;
+  if (name === "menu") renderMenu();
+  if (name === "levels") renderLevels();
+  if (name === "upgrades") renderUpgrades();
+}
+
+document.getElementById("playBtn").onclick = () => startGame(state.highest);
+document.getElementById("levelsBtn").onclick = () => show("levels");
+document.getElementById("upgradesBtn").onclick = () => { upgradesReturnTo = "menu"; show("upgrades"); };
+document.getElementById("resetBtn").onclick = () => {
+  if (confirm("Reset all progress? Coins, upgrades and levels will be erased.")) {
+    state.coins = 0; state.highest = 1; state.completed = {}; state.upg = {};
+    saveState(); renderMenu();
+  }
+};
+document.querySelectorAll(".back").forEach(b => {
+  b.onclick = () => show(b.dataset.nav === "back" ? upgradesReturnTo : b.dataset.nav);
+});
+
+function renderMenu() {
+  document.getElementById("menuCoins").textContent = shortNum(state.coins);
+  document.getElementById("playSub").textContent = "Level " + state.highest;
+  const lo = loadout();
+  document.getElementById("menuStats").textContent =
+    lo.damage + " dmg • " + lo.shotsPerSec.toFixed(1) + "/s • " + lo.streams + " streams";
+}
+
+function renderLevels() {
+  const grid = document.getElementById("levelGrid");
+  grid.innerHTML = "";
+  const count = Math.max(60, state.highest + 12);
+  for (let n = 1; n <= count; n++) {
+    const unlocked = n <= state.highest;
+    const completed = !!state.completed[n];
+    const isBoss = n % 10 === 0;
+    const cell = document.createElement("button");
+    cell.className = "lvl" + (!unlocked ? " locked" : (n === state.highest && !completed ? " current" : ""));
+    let html = "";
+    if (isBoss) html += '<span class="crown">\u{1F451}</span>';
+    html += unlocked ? n : "\u{1F512}";
+    if (unlocked && completed) html += '<span class="sub">✓</span>';
+    cell.innerHTML = html;
+    if (unlocked) cell.onclick = () => startGame(n);
+    else cell.disabled = true;
+    grid.appendChild(cell);
+  }
+}
+
+function renderUpgrades() {
+  document.getElementById("shopCoins").textContent = shortNum(state.coins);
+  const list = document.getElementById("upgradeList");
+  list.innerHTML = "";
+  for (const u of UPGRADES) {
+    const l = upgLevel(u.id);
+    const cost = upgCost(u);
+    const afford = cost !== null && state.coins >= cost;
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML =
+      '<div class="icon">' + u.icon + '</div>' +
+      '<div class="info">' +
+        '<div><span class="name">' + u.name + '</span><span class="lv">Lv ' + l + "/" + u.max + '</span></div>' +
+        '<div class="blurb">' + u.blurb + '</div>' +
+        '<div class="fx">' + u.fx(l) +
+          (cost !== null ? ' <span class="next">→ ' + u.fx(l + 1) + "</span>" : "") +
+        '</div>' +
+      '</div>';
+    const buy = document.createElement("button");
+    buy.className = "buy" + (afford ? "" : " cant");
+    buy.innerHTML = cost === null ? "MAX" : "$ " + shortNum(cost);
+    buy.disabled = !afford;
+    buy.onclick = () => {
+      if (cost !== null && state.coins >= cost) {
+        state.coins -= cost;
+        state.upg[u.id] = l + 1;
+        saveState();
+        renderUpgrades();
+      }
+    };
+    card.appendChild(buy);
+    list.appendChild(card);
+  }
+}
+
+/* ============================== Game ============================== */
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+
+function resizeCanvas() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+const PALETTE = ["#ed595f", "#4db0f0", "#8ccc59", "#f29e42", "#b575e8", "#ed73bc", "#5cd4bd"];
+const TIER_R = [16, 26, 40, 58];
+const GRAVITY = 1500;
+const BULLET_SPEED = 1150;
+const GROUND_H = 100;
+const CANNON_HIT_R = 24;
+
+let game = null;
+let rafId = 0;
+
+function startGame(levelNumber) {
+  game = newGame(levelNumber);
+  show("game");
+  document.getElementById("hudLevel").textContent = (game.cfg.isBoss ? "BOSS " : "LEVEL ") + levelNumber;
+  document.getElementById("progressFill").style.width = "0%";
+  document.getElementById("gameCoins").textContent = shortNum(state.coins);
+  document.getElementById("startHint").classList.add("active");
+  document.getElementById("pauseOverlay").classList.remove("active");
+  document.getElementById("resultOverlay").classList.remove("active");
+  if (!rafId) rafId = requestAnimationFrame(frame);
+}
+
+function newGame(levelNumber) {
+  const cfg = levelConfig(levelNumber);
+  return {
+    level: levelNumber,
+    cfg,
+    lo: loadout(),
+    phase: "ready",            // ready | running | won | lost
+    paused: false,
+    balls: [],
+    bullets: [],
+    particles: [],
+    floaters: [],
+    cannonX: W / 2,
+    targetX: W / 2,
+    fireAcc: 0,
+    spawnAcc: cfg.interval,    // first ball appears immediately
+    spawned: 0,
+    fromLeft: true,
+    runCoins: 0,
+    destroyedHP: 0,
+    totalHP: totalHPPool(cfg),
+    endTimer: 0,
+    lastT: 0,
+  };
+}
+
+function bounceSpeed(tier) {
+  // Fixed bounce heights as fractions of the playfield, like the original.
+  const frac = [0.30, 0.45, 0.60, 0.78][tier];
+  const peak = frac * (H - GROUND_H - TIER_R[tier] - 60);
+  return Math.sqrt(2 * GRAVITY * Math.max(80, peak));
+}
+
+function makeBall(g, tier, hp, x, y, vx, vy) {
+  return { tier, hp, maxHP: hp, x, y, vx, vy, r: TIER_R[tier],
+           color: PALETTE[(g.cfg.number - 1 + tier) % PALETTE.length] };
+}
+
+/* ---------- input ---------- */
+
+canvas.addEventListener("pointerdown", e => {
+  if (!game || game.paused || game.phase === "won" || game.phase === "lost") return;
+  if (game.phase === "ready") {
+    game.phase = "running";
+    document.getElementById("startHint").classList.remove("active");
+  }
+  game.targetX = e.clientX;
+});
+canvas.addEventListener("pointermove", e => {
+  if (game && game.phase === "running" && !game.paused) game.targetX = e.clientX;
+});
+
+/* ---------- pause / overlays ---------- */
+
+document.getElementById("pauseBtn").onclick = () => {
+  if (game && game.phase === "running") {
+    game.paused = true;
+    document.getElementById("pauseOverlay").classList.add("active");
+  }
+};
+document.getElementById("resumeBtn").onclick = () => {
+  game.paused = false;
+  game.lastT = 0;
+  document.getElementById("pauseOverlay").classList.remove("active");
+};
+document.getElementById("restartBtn").onclick = () => { bankRunCoins(); startGame(game.level); };
+document.getElementById("quitBtn").onclick = () => { bankRunCoins(); leaveGame(); };
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && game && game.phase === "running" && !game.paused) {
+    game.paused = true;
+    document.getElementById("pauseOverlay").classList.add("active");
+  }
+});
+
+function bankRunCoins() {
+  if (game && game.runCoins > 0 && game.phase !== "won" && game.phase !== "lost") {
+    state.coins += game.runCoins;
+    saveState();
+  }
+}
+
+function leaveGame() {
+  game = null;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+  show("menu");
+}
+
+/* ---------- end of run ---------- */
+
+function finishRun(victory) {
+  let reward = 0;
+  if (victory) {
+    reward = state.completed[game.level] ? game.cfg.replayReward : game.cfg.firstReward;
+    state.completed[game.level] = true;
+    state.highest = Math.max(state.highest, game.level + 1);
+  }
+  state.coins += game.runCoins + reward;
+  saveState();
+
+  document.getElementById("resultTitle").textContent =
+    victory ? "LEVEL " + game.level + " CLEAR!" : "GAME OVER";
+  document.getElementById("resultTitle").style.color = victory ? "var(--yellow)" : "#f25555";
+
+  let stats = '<div class="row"><span>Coins collected</span><b>+' + shortNum(game.runCoins) + "</b></div>";
+  if (victory) stats += '<div class="row"><span>Level reward</span><b>+' + shortNum(reward) + "</b></div>";
+  stats += '<hr><div class="row"><span>Total coins</span><b>' + shortNum(state.coins) + "</b></div>";
+  document.getElementById("resultStats").innerHTML = stats;
+
+  const btns = document.getElementById("resultButtons");
+  btns.innerHTML = "";
+  const add = (label, primary, fn) => {
+    const b = document.createElement("button");
+    b.className = "btn" + (primary ? " primary" : "");
+    b.textContent = label;
+    b.onclick = fn;
+    btns.appendChild(b);
+  };
+  if (victory) {
+    add("Next Level", true, () => startGame(game.level + 1));
+    add("Replay", false, () => startGame(game.level));
+  } else {
+    add("Retry", true, () => startGame(game.level));
+  }
+  add("Upgrades", false, () => { upgradesReturnTo = "game-result"; show("upgrades"); });
+  add("Main Menu", false, leaveGame);
+
+  document.getElementById("gameCoins").textContent = shortNum(state.coins);
+  document.getElementById("resultOverlay").classList.add("active");
+}
+
+// Returning from the upgrade shop to the result screen.
+document.querySelectorAll(".back").forEach(b => {
+  const orig = b.onclick;
+  b.onclick = () => {
+    if (b.dataset.nav === "back" && upgradesReturnTo === "game-result") show("game");
+    else orig();
+  };
+});
+
+/* ---------- simulation ---------- */
+
+function frame(t) {
+  rafId = requestAnimationFrame(frame);
+  if (!game || currentScreen !== "game") return;
+
+  const ts = t / 1000;
+  let dt = game.lastT ? Math.min(ts - game.lastT, 1 / 30) : 1 / 60;
+  game.lastT = ts;
+  if (game.paused) return;
+
+  update(dt);
+  draw();
+}
+
+function update(dt) {
+  const g = game;
+
+  // Cannon follows the finger.
+  const margin = 34;
+  const target = Math.min(Math.max(g.targetX, margin), W - margin);
+  g.cannonX += (target - g.cannonX) * Math.min(1, dt * 16);
+
+  // Effects keep animating even after the run ends.
+  updateParticles(dt);
+
+  if (g.phase === "won" || g.phase === "lost") {
+    g.endTimer -= dt;
+    if (g.endTimer <= 0 && !document.getElementById("resultOverlay").classList.contains("active")) {
+      finishRun(g.phase === "won");
+    }
+    return;
+  }
+  if (g.phase !== "running") return;
+
+  // Spawn waves.
+  if (g.spawned < g.cfg.count) {
+    g.spawnAcc += dt;
+    if (g.spawnAcc >= g.cfg.interval) {
+      g.spawnAcc = 0;
+      g.spawned++;
+      const r = TIER_R[g.cfg.tier];
+      const x = g.fromLeft ? 50 : W - 50;
+      const vx = (90 + Math.random() * 50) * (g.fromLeft ? 1 : -1);
+      g.fromLeft = !g.fromLeft;
+      g.balls.push(makeBall(g, g.cfg.tier, g.cfg.hp, x, H + r + 10, vx, 0));
+    }
+  }
+
+  // Auto-fire.
+  g.fireAcc += dt;
+  const interval = 1 / g.lo.shotsPerSec;
+  let volleys = 0;
+  while (g.fireAcc >= interval && volleys < 4) {
+    g.fireAcc -= interval;
+    volleys++;
+    const n = g.lo.streams, spacing = 13;
+    const startX = g.cannonX - spacing * (n - 1) / 2;
+    for (let i = 0; i < n; i++) g.bullets.push({ x: startX + i * spacing, y: GROUND_H + 52 });
+  }
+
+  // Bullets.
+  for (const b of g.bullets) b.y += BULLET_SPEED * dt;
+  g.bullets = g.bullets.filter(b => b.y < H + 30);
+
+  // Balls.
+  for (const ball of g.balls) {
+    ball.vy -= GRAVITY * dt;
+    ball.x += ball.vx * dt;
+    ball.y += ball.vy * dt;
+    if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
+    else if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx); }
+    if (ball.y - ball.r <= GROUND_H && ball.vy < 0) {
+      ball.y = GROUND_H + ball.r;
+      ball.vy = bounceSpeed(ball.tier);
+    }
+  }
+
+  // Bullets vs balls.
+  const keep = [];
+  for (const b of g.bullets) {
+    let hit = false;
+    for (const ball of g.balls) {
+      if (ball.hp <= 0) continue;
+      const dx = b.x - ball.x, dy = b.y - ball.y, reach = ball.r + 8;
+      if (dx * dx + dy * dy <= reach * reach) { ball.hp -= g.lo.damage; hit = true; break; }
+    }
+    if (!hit) keep.push(b);
+  }
+  g.bullets = keep;
+
+  // Pop dead balls, split big tiers.
+  const survivors = [], children = [];
+  let popped = false;
+  for (const ball of g.balls) {
+    if (ball.hp > 0) { survivors.push(ball); continue; }
+    popped = true;
+    g.destroyedHP += ball.maxHP;
+    const value = Math.max(1, Math.round(ball.maxHP * COINS_PER_HP * g.lo.coinMult));
+    g.runCoins += value;
+    g.floaters.push({ x: ball.x, y: ball.y, text: "+" + shortNum(value), t: 0.6 });
+    burst(ball.x, ball.y, ball.color, ball.r);
+    if (ball.tier > 0) {
+      const childHP = Math.max(1, ball.maxHP >> 1);
+      const speed = 80 + Math.random() * 50;
+      for (const dir of [-1, 1]) {
+        children.push(makeBall(g, ball.tier - 1, childHP, ball.x, ball.y, speed * dir, 420));
+      }
+    }
+  }
+  g.balls = survivors.concat(children);
+  if (popped) {
+    document.getElementById("gameCoins").textContent = shortNum(state.coins + g.runCoins);
+    document.getElementById("progressFill").style.width =
+      Math.min(100, 100 * g.destroyedHP / g.totalHP) + "%";
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  // Balls vs cannon — one touch ends the run.
+  const cy = GROUND_H + 22;
+  for (const ball of g.balls) {
+    const dx = ball.x - g.cannonX, dy = ball.y - cy, reach = ball.r + CANNON_HIT_R;
+    if (dx * dx + dy * dy < reach * reach) {
+      g.phase = "lost";
+      g.endTimer = 0.8;
+      burst(g.cannonX, cy, "#ffcc26", 36);
+      if (navigator.vibrate) navigator.vibrate([30, 40, 60]);
+      return;
+    }
+  }
+
+  // Victory.
+  if (g.spawned === g.cfg.count && g.balls.length === 0) {
+    g.phase = "won";
+    g.endTimer = 0.6;
+  }
+}
+
+function burst(x, y, color, r) {
+  for (let i = 0; i < 8; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = r * (1 + Math.random() * 1.4) / 0.35;
+    game.particles.push({ x, y, vx: Math.cos(a) * d, vy: Math.sin(a) * d + 60,
+                          r: Math.max(3, r * 0.14), color, t: 0.35 });
+  }
+}
+
+function updateParticles(dt) {
+  const g = game;
+  for (const p of g.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.t -= dt; }
+  g.particles = g.particles.filter(p => p.t > 0);
+  for (const f of g.floaters) { f.y += 75 * dt; f.t -= dt; }
+  g.floaters = g.floaters.filter(f => f.t > 0);
+}
+
+/* ---------- rendering ---------- */
+
+function draw() {
+  const g = game;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background and ground (canvas Y is flipped vs the sim: sim Y up, canvas Y down).
+  ctx.fillStyle = "#14172a";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#242742";
+  ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
+  ctx.fillStyle = "#454a75";
+  ctx.fillRect(0, H - GROUND_H - 2, W, 3);
+
+  const sy = y => H - y;
+
+  // Bullets.
+  ctx.fillStyle = "#ffeb80";
+  for (const b of g.bullets) ctx.fillRect(b.x - 2.5, sy(b.y) - 8, 5, 16);
+
+  // Balls.
+  for (const ball of g.balls) {
+    ctx.beginPath();
+    ctx.arc(ball.x, sy(ball.y), ball.r, 0, Math.PI * 2);
+    ctx.fillStyle = ball.color;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.font = "900 " + Math.max(12, ball.r * 0.55) + "px -apple-system, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(shortNum(Math.max(0, ball.hp)), ball.x, sy(ball.y));
+  }
+
+  // Cannon.
+  if (g.phase !== "lost") drawCannon(g.cannonX, sy(GROUND_H));
+
+  // Particles & floating coin text.
+  for (const p of g.particles) {
+    ctx.globalAlpha = Math.max(0, p.t / 0.35);
+    ctx.beginPath();
+    ctx.arc(p.x, sy(p.y), p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "900 16px -apple-system, system-ui, sans-serif";
+  for (const f of g.floaters) {
+    ctx.globalAlpha = Math.max(0, f.t / 0.6);
+    ctx.fillStyle = "#ffd84d";
+    ctx.fillText(f.text, f.x, sy(f.y));
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCannon(x, groundY) {
+  const dark = "#2a2a3a";
+  // Barrel.
+  ctx.fillStyle = dark;
+  roundRect(x - 9, groundY - 58, 18, 38, 5);
+  // Body.
+  ctx.beginPath();
+  ctx.arc(x, groundY - 24, 22, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffcc26";
+  ctx.fill();
+  // Visor.
+  ctx.fillStyle = dark;
+  roundRect(x - 13, groundY - 32, 26, 9, 4.5);
+  // Wheels.
+  for (const wx of [-15, 15]) {
+    ctx.beginPath();
+    ctx.arc(x + wx, groundY - 10, 10, 0, Math.PI * 2);
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + wx, groundY - 10, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#8c8c99";
+    ctx.fill();
+  }
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.fill();
+}
+
+/* ============================== Boot ============================== */
+
+renderMenu();
+</script>
+</body>
+</html>
