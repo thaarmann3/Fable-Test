@@ -943,8 +943,9 @@ canvas.addEventListener("pointerdown", e => {
 canvas.addEventListener("pointermove", e => {
   if (game && game.phase === "running" && !game.paused) game.targetX = e.clientX;
 });
-canvas.addEventListener("pointerup", () => { if (game) game.firing = false; });
-canvas.addEventListener("pointercancel", () => { if (game) game.firing = false; });
+window.addEventListener("pointerup", () => { if (game) game.firing = false; });
+window.addEventListener("pointercancel", () => { if (game) game.firing = false; });
+window.addEventListener("blur", () => { if (game) game.firing = false; });
 
 /* ---------- pause / overlays ---------- */
 
