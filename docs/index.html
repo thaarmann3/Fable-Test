@@ -208,6 +208,10 @@
     <div class="diffLabel">BALL SPEED</div>
     <div class="seg" id="diffSeg"></div>
   </div>
+  <div class="center" style="margin-top:12px">
+    <div class="diffLabel">MYSTERY BALLS</div>
+    <div class="seg" id="mysterySeg"></div>
+  </div>
   <div style="flex:1"></div>
   <div class="center"><button class="reset" id="resetBtn">Reset Progress</button></div>
 </div>
@@ -291,7 +295,7 @@ const state = loadState();
 function loadState() {
   const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal",
                   equipped: { cannon: "classic", bullet: "standard", wheel: "standard" },
-                  owned: {}, streak: 0 };
+                  owned: {}, streak: 0, mystery: "normal" };
   if (!storageOK) return fresh;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -324,6 +328,7 @@ function loadState() {
       },
       owned,
       streak: Math.max(0, s.streak | 0),
+      mystery: typeof s.mystery === "string" ? s.mystery : "normal",
     };
   } catch (e) { return fresh; }
 }
@@ -395,6 +400,16 @@ const DIFFICULTIES = [
 ];
 const currentDifficulty = () =>
   DIFFICULTIES.find(d => d.id === state.difficulty) || DIFFICULTIES[1];
+
+/* Chance that each spawned ball brings a mystery ball along. */
+const MYSTERY_RATES = [
+  { id: "rare",   name: "Rare",   p: 0.04 },
+  { id: "normal", name: "Normal", p: 0.08 },
+  { id: "often",  name: "Often",  p: 0.15 },
+  { id: "frenzy", name: "Frenzy", p: 0.25 },
+];
+const currentMystery = () =>
+  MYSTERY_RATES.find(d => d.id === state.mystery) || MYSTERY_RATES[1];
 
 /* ============================== Cosmetics ============================== */
 
@@ -511,7 +526,11 @@ function levelConfig(n) {
   let tier = 2;
   if (n < 4) tier = 1;
   else if (n % 7 === 0 && n >= 8) tier = 3;
-  return { number: n, count: Math.min(4 + Math.floor((n - 1) / 2), 14), tier, hp: baseHP,
+  // Level length grows gradually with progression but is randomized ±30%,
+  // so neighboring levels feel shorter or longer than each other.
+  const baseCount = Math.min(4 + (n - 1) * 0.6, 22);
+  const count = Math.max(3, Math.round(baseCount * (0.7 + Math.random() * 0.6)));
+  return { number: n, count, tier, hp: baseHP,
            interval: Math.max(2.4, 5.0 - 0.06 * n), isBoss, firstReward: 50 + 28 * n, replayReward: 8 + 4 * n };
 }
 
@@ -580,6 +599,16 @@ function renderMenu() {
     b.className = d.id === currentDifficulty().id ? "sel" : "";
     b.onclick = () => { state.difficulty = d.id; saveState(); renderMenu(); };
     seg.appendChild(b);
+  }
+
+  const mseg = document.getElementById("mysterySeg");
+  mseg.innerHTML = "";
+  for (const d of MYSTERY_RATES) {
+    const b = document.createElement("button");
+    b.textContent = d.name;
+    b.className = d.id === currentMystery().id ? "sel" : "";
+    b.onclick = () => { state.mystery = d.id; saveState(); renderMenu(); };
+    mseg.appendChild(b);
   }
 }
 
@@ -787,7 +816,6 @@ function newGame(levelNumber) {
     coins: [],
     powerups: [],
     buffs: { shield: 0, twin: 0, spread: 0, coinx: 0 },
-    mysterySpawned: 0,
     // Win 3+ levels in a row: a bonus mini-cannon fires homing missiles,
     // faster with longer streaks.
     bonus: state.streak >= 3,
@@ -1152,9 +1180,8 @@ function update(dt) {
       const nb = makeBall(g, g.cfg.tier, g.cfg.hp, x, H + r + 10, vx, 0);
       if (g.cfg.isBoss) { nb.isBoss = true; nb.atkT = 3 + Math.random() * 2; nb.tele = 0; }
       g.balls.push(nb);
-      // Occasionally a mystery ball drifts in from the other side.
-      if (g.mysterySpawned < 2 && Math.random() < 0.18) {
-        g.mysterySpawned++;
+      // Each spawned ball has a chance (menu setting) to bring a mystery ball.
+      if (Math.random() < currentMystery().p) {
         const mb = makeBall(g, 0, Math.max(3, g.cfg.hp >> 2), W - x, H + 30, -vx * 0.8, 0);
         mb.mystery = true;
         mb.life = 14;
