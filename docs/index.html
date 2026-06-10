@@ -855,10 +855,10 @@ function newGame(levelNumber) {
    scales with the popped ball's value so late-game drops stay readable.
    Higher tiers are rarer. Uncollected coins expire after 10 seconds. */
 const COIN_TIERS = [
-  { mul: 1,  r: 2.8, color: "#c9cdd6" },
-  { mul: 2,  r: 3.6, color: "#ffd84d" },
-  { mul: 5,  r: 4.4, color: "#5db5ff" },
-  { mul: 10, r: 5.6, color: "#c95df0" },
+  { mul: 1,  r: 2.5, color: "#c9cdd6" },
+  { mul: 2,  r: 3,   color: "#ffd84d" },
+  { mul: 5,  r: 3.8, color: "#5db5ff" },
+  { mul: 10, r: 4.8, color: "#c95df0" },
 ];
 
 function spawnCoinDrops(g, x, y, value) {
