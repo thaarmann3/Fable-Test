@@ -1196,9 +1196,10 @@ function update(dt) {
     }
   }
 
-  // Fire only while the player is pressing the screen.
+  // The main cannon fires only while the player is pressing the screen;
+  // the twin power-up cannon keeps firing on its own.
   const interval = 1 / g.lo.shotsPerSec;
-  if (!g.firing) {
+  if (!g.firing && g.buffs.twin <= 0) {
     g.fireAcc = interval; // primed: first shot lands the moment they press
   } else {
     g.fireAcc += dt;
@@ -1207,7 +1208,8 @@ function update(dt) {
   while (g.fireAcc >= interval && volleys < 4) {
     g.fireAcc -= interval;
     volleys++;
-    const xs = [g.cannonX];
+    const xs = [];
+    if (g.firing) xs.push(g.cannonX);
     if (g.buffs.twin > 0) xs.push(twinX(g));
     for (const cx of xs) {
       const n = g.lo.streams, spacing = 13;
