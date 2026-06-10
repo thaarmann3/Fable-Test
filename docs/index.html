@@ -749,6 +749,7 @@ function newGame(levelNumber) {
     cannon: equipped("cannon"),
     wheel: equipped("wheel"),
     bulletStyle: equipped("bullet"),
+    coins: [],
     phase: "ready",            // ready | running | won | lost
     paused: false,
     balls: [],
@@ -768,6 +769,70 @@ function newGame(levelNumber) {
     endTimer: 0,
     lastT: 0,
   };
+}
+
+/* Coin pickups drop in four tiers (like collectible studs): the unit
+   scales with the popped ball's value so late-game drops stay readable.
+   Higher tiers are rarer. Uncollected coins expire after 10 seconds. */
+const COIN_TIERS = [
+  { mul: 1,  r: 5.5, color: "#c9cdd6" },
+  { mul: 2,  r: 6.5, color: "#ffd84d" },
+  { mul: 5,  r: 8,   color: "#5db5ff" },
+  { mul: 10, r: 10,  color: "#c95df0" },
+];
+
+function spawnCoinDrops(g, x, y, value) {
+  const unit = Math.max(1, Math.ceil(value / 20));
+  let remaining = value, n = 0;
+  while (remaining > 0 && n < 10) {
+    let tier = 0;
+    const roll = Math.random() * 100;
+    if (roll > 95) tier = 3; else if (roll > 82) tier = 2; else if (roll > 55) tier = 1;
+    while (tier > 0 && COIN_TIERS[tier].mul * unit > remaining) tier--;
+    let v = Math.min(remaining, COIN_TIERS[tier].mul * unit);
+    n++;
+    if (n === 10 || remaining - v < unit) v = remaining; // fold the leftover in
+    remaining -= v;
+    g.coins.push({ x, y, vx: (Math.random() * 2 - 1) * 150, vy: 120 + Math.random() * 260,
+                   tier, value: v, t: 10 });
+  }
+  if (g.coins.length > 90) { // auto-bank the oldest so performance stays fine
+    for (const c of g.coins.splice(0, g.coins.length - 90)) collectCoin(g, c, false);
+  }
+}
+
+function collectCoin(g, c, floater) {
+  g.runCoins += c.value;
+  if (floater && c.tier >= 2) {
+    g.floaters.push({ x: c.x, y: c.y, text: "+" + shortNum(c.value), t: 0.5 });
+  }
+  document.getElementById("gameCoins").textContent = shortNum(state.coins + g.runCoins);
+}
+
+function updateCoins(dt) {
+  const g = game;
+  const cx = g.cannonX, cy = GROUND_H + 20;
+  const keep = [];
+  for (const c of g.coins) {
+    c.t -= dt;
+    if (c.t <= 0) continue;
+    c.vy -= g.gravity * 0.8 * dt;
+    c.x += c.vx * dt;
+    c.y += c.vy * dt;
+    const r = COIN_TIERS[c.tier].r;
+    if (c.x - r < 0) { c.x = r; c.vx = Math.abs(c.vx); }
+    else if (c.x + r > W) { c.x = W - r; c.vx = -Math.abs(c.vx); }
+    if (c.y - r <= GROUND_H && c.vy < 0) {
+      c.y = GROUND_H + r;
+      c.vy = Math.abs(c.vy) > 90 ? -c.vy * 0.4 : 0;
+      c.vx *= 0.8;
+    }
+    if (c.vy === 0) c.vx *= Math.max(0, 1 - 4 * dt);
+    const dx = c.x - cx, dy = c.y - cy;
+    if (dx * dx + dy * dy < 3600) { collectCoin(g, c, true); continue; }
+    keep.push(c);
+  }
+  g.coins = keep;
 }
 
 /* Deterministic scatter of dim background dots (stars, sand, snow...). */
@@ -1019,8 +1084,7 @@ function update(dt) {
     popped = true;
     g.destroyedHP += ball.maxHP;
     const value = Math.max(1, Math.round(ball.maxHP * COINS_PER_HP * g.lo.coinMult));
-    g.runCoins += value;
-    g.floaters.push({ x: ball.x, y: ball.y, text: "+" + shortNum(value), t: 0.6 });
+    spawnCoinDrops(g, ball.x, ball.y, value);
     burst(ball.x, ball.y, ballColor(g, ball), ball.r);
     if (ball.tier > 0) {
       const childHP = Math.max(1, ball.maxHP >> 1);
@@ -1032,11 +1096,11 @@ function update(dt) {
   }
   g.balls = survivors.concat(children);
   if (popped) {
-    document.getElementById("gameCoins").textContent = shortNum(state.coins + g.runCoins);
     document.getElementById("progressFill").style.width =
       Math.min(100, 100 * g.destroyedHP / g.totalHP) + "%";
     if (navigator.vibrate) navigator.vibrate(8);
   }
+  updateCoins(dt);
 
   // Balls vs cannon — one touch ends the run.
   const cy = GROUND_H + 22;
@@ -1051,8 +1115,10 @@ function update(dt) {
     }
   }
 
-  // Victory.
+  // Victory: vacuum up any coins still on the field.
   if (g.spawned === g.cfg.count && g.balls.length === 0) {
+    for (const c of g.coins) collectCoin(g, c, false);
+    g.coins = [];
     g.phase = "won";
     g.endTimer = 0.6;
   }
@@ -1122,6 +1188,19 @@ function draw() {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(shortNum(Math.max(0, ball.hp)), ball.x, sy(ball.y));
+  }
+
+  // Coin pickups (blink when about to expire).
+  for (const c of g.coins) {
+    if (c.t < 2.5 && ((c.t * 8) | 0) % 2 === 0) continue;
+    const ct = COIN_TIERS[c.tier];
+    ctx.beginPath();
+    ctx.arc(c.x, sy(c.y), ct.r, 0, Math.PI * 2);
+    ctx.fillStyle = ct.color;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+    ctx.stroke();
   }
 
   // Cannon.
