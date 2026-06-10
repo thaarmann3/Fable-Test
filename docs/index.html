@@ -297,6 +297,13 @@ function loadState() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return fresh;
     const s = JSON.parse(raw);
+    // Old multi-shot purchases convert to 8 fire-rate tiers each, which
+    // grant the same number of bullet streams under the new system.
+    const upg = Object.assign({}, s.upg || {});
+    if (upg.multiShot) {
+      upg.fireRate = (upg.fireRate | 0) + 8 * upg.multiShot;
+      delete upg.multiShot;
+    }
     // Migrate older saves that used a single "skin" field.
     const eq = s.equipped || {};
     let owned = s.owned;
@@ -308,7 +315,7 @@ function loadState() {
       coins: Math.max(0, s.coins | 0),
       highest: Math.max(1, s.highest | 0),
       completed: s.completed || {},
-      upg: s.upg || {},
+      upg,
       difficulty: typeof s.difficulty === "string" ? s.difficulty : "normal",
       equipped: {
         cannon: eq.cannon || s.skin || "classic",
@@ -327,21 +334,26 @@ function saveState() {
 
 /* ============================== Balance ============================== */
 
-const COINS_PER_HP = 0.4;
+const COINS_PER_HP = 0.7;
 const bulletDamage   = l => 1 + l;
-const shotsPerSecond = l => 3.0 + 0.35 * l;
-const bulletStreams  = l => 1 + l;
-const coinMultiplier = l => 1.0 + 0.12 * l;
+const shotsPerSecond = l => Math.min(3.0 + 0.35 * l, 12);
+const streamsFromRate = l => 1 + Math.floor(l / 8); // every 8 fire-rate tiers adds a stream
+const coinMultiplier = l => 1.0 + 0.20 * l;
+
+/* Upgrades are infinite: no caps, and every tier N costs the same
+   regardless of which upgrade it is. */
+const tierCost = l => Math.round(20 * Math.pow(1.28, l));
 
 const UPGRADES = [
-  { id: "firepower", name: "Firepower",  icon: "\u{1F525}", blurb: "Each bullet deals more damage",
-    max: 40, base: 30,  growth: 1.42, fx: l => bulletDamage(l) + " dmg" },
-  { id: "fireRate",  name: "Fire Rate",  icon: "⚡",    blurb: "Shoot faster",
-    max: 25, base: 25,  growth: 1.45, fx: l => shotsPerSecond(l).toFixed(1) + " shots/s" },
-  { id: "multiShot", name: "Multi-Shot", icon: "\u{1F500}", blurb: "Fire extra bullet streams",
-    max: 4,  base: 400, growth: 5.0,  fx: l => bulletStreams(l) + " streams" },
-  { id: "coinBonus", name: "Coin Bonus", icon: "\u{1F4B0}", blurb: "Balls drop more coins",
-    max: 20, base: 60,  growth: 1.6,  fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
+  { id: "firepower", name: "Firepower", icon: "\u{1F525}",
+    blurb: "Each bullet deals more damage",
+    fx: l => bulletDamage(l) + " dmg" },
+  { id: "fireRate",  name: "Fire Rate", icon: "⚡",
+    blurb: "Shoot faster — every 8 tiers adds a bullet stream",
+    fx: l => shotsPerSecond(l).toFixed(1) + "/s × " + streamsFromRate(l) },
+  { id: "coinBonus", name: "Coin Bonus", icon: "\u{1F4B0}",
+    blurb: "Balls drop more coins",
+    fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
 ];
 
 /* Difficulty scales how fast balls fall. Bounce heights stay the same. */
@@ -435,16 +447,14 @@ const THEMES = [
 const themeFor = n => THEMES[Math.floor((n - 1) / 10) % THEMES.length];
 
 const upgLevel = id => state.upg[id] | 0;
-const upgCost = u => {
-  const l = upgLevel(u.id);
-  return l >= u.max ? null : Math.max(u.base, Math.round(u.base * Math.pow(u.growth, l)));
-};
+const upgCost = u => tierCost(upgLevel(u.id));
 
 function loadout() {
+  const fr = upgLevel("fireRate");
   return {
     damage: bulletDamage(upgLevel("firepower")),
-    shotsPerSec: shotsPerSecond(upgLevel("fireRate")),
-    streams: bulletStreams(upgLevel("multiShot")),
+    shotsPerSec: shotsPerSecond(fr),
+    streams: streamsFromRate(fr),
     coinMult: coinMultiplier(upgLevel("coinBonus")),
   };
 }
@@ -567,24 +577,22 @@ function renderUpgrades() {
   for (const u of UPGRADES) {
     const l = upgLevel(u.id);
     const cost = upgCost(u);
-    const afford = cost !== null && state.coins >= cost;
+    const afford = state.coins >= cost;
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML =
       '<div class="icon">' + u.icon + '</div>' +
       '<div class="info">' +
-        '<div><span class="name">' + u.name + '</span><span class="lv">Lv ' + l + "/" + u.max + '</span></div>' +
+        '<div><span class="name">' + u.name + '</span><span class="lv">Lv ' + l + '</span></div>' +
         '<div class="blurb">' + u.blurb + '</div>' +
-        '<div class="fx">' + u.fx(l) +
-          (cost !== null ? ' <span class="next">→ ' + u.fx(l + 1) + "</span>" : "") +
-        '</div>' +
+        '<div class="fx">' + u.fx(l) + ' <span class="next">→ ' + u.fx(l + 1) + "</span></div>" +
       '</div>';
     const buy = document.createElement("button");
     buy.className = "buy" + (afford ? "" : " cant");
-    buy.innerHTML = cost === null ? "MAX" : "$ " + shortNum(cost);
+    buy.innerHTML = "$ " + shortNum(cost);
     buy.disabled = !afford;
     buy.onclick = () => {
-      if (cost !== null && state.coins >= cost) {
+      if (state.coins >= cost) {
         state.coins -= cost;
         state.upg[u.id] = l + 1;
         saveState();
