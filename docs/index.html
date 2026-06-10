@@ -354,8 +354,12 @@ const UPGRADES = [
     blurb: "Each bullet deals more damage",
     fx: l => bulletDamage(l) + " dmg" },
   { id: "fireRate",  name: "Fire Rate", icon: "⚡",
-    blurb: "Shoot faster — every 8 tiers adds a bullet stream",
-    fx: l => shotsPerSecond(l).toFixed(1) + "/s × " + streamsFromRate(l) },
+    blurb: "Shoot faster — every 8 tiers adds a bullet stream (max 6 drawn, then bonus damage)",
+    fx: l => {
+      const s = streamsFromRate(l), v = Math.min(s, MAX_VISIBLE_STREAMS);
+      return shotsPerSecond(l).toFixed(1) + "/s × " + v +
+             (s > v ? " (×" + (s / v).toFixed(2) + " dmg)" : "");
+    } },
   { id: "coinBonus", name: "Coin Bonus", icon: "\u{1F4B0}",
     blurb: "Balls drop more coins",
     fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
@@ -475,12 +479,21 @@ const themeFor = n => THEMES[Math.floor((n - 1) / 10) % THEMES.length];
 const upgLevel = id => state.upg[id] | 0;
 const upgCost = u => tierCost(upgLevel(u.id));
 
+/* At most 6 bullet streams are drawn; streams earned beyond that fold
+   into per-bullet damage instead, so DPS keeps scaling without the
+   screen filling up. */
+const MAX_VISIBLE_STREAMS = 6;
+
 function loadout() {
   const fr = upgLevel("fireRate");
+  const streams = streamsFromRate(fr);
+  const visible = Math.min(streams, MAX_VISIBLE_STREAMS);
+  const damage = bulletDamage(upgLevel("firepower"));
   return {
-    damage: bulletDamage(upgLevel("firepower")),
+    damage,
+    bulletDmg: Math.max(1, Math.round(damage * streams / visible)),
     shotsPerSec: shotsPerSecond(fr),
-    streams: streamsFromRate(fr),
+    streams: visible,
     coinMult: coinMultiplier(upgLevel("coinBonus")),
   };
 }
@@ -1183,7 +1196,7 @@ function update(dt) {
     for (const ball of g.balls) {
       if (ball.hp <= 0) continue;
       const dx = b.x - ball.x, dy = b.y - ball.y, reach = ball.r + 8;
-      if (dx * dx + dy * dy <= reach * reach) { ball.hp -= g.lo.damage; hit = true; break; }
+      if (dx * dx + dy * dy <= reach * reach) { ball.hp -= g.lo.bulletDmg; hit = true; break; }
     }
     if (!hit) keep.push(b);
   }
