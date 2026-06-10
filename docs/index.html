@@ -359,7 +359,28 @@ const UPGRADES = [
   { id: "coinBonus", name: "Coin Bonus", icon: "\u{1F4B0}",
     blurb: "Balls drop more coins",
     fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
+  { id: "shieldUp", name: "Shield", icon: "\u{1F6E1}",
+    blurb: "Invincibility power-up lasts longer",
+    fx: l => (5 + 0.5 * l).toFixed(1) + "s" },
+  { id: "twinUp", name: "Twin Cannon", icon: "\u{2795}",
+    blurb: "Twin cannon power-up lasts longer",
+    fx: l => (7 + 0.5 * l).toFixed(1) + "s" },
+  { id: "spreadUp", name: "Spread Shot", icon: "\u{1F3AF}",
+    blurb: "Spread power-up fires more angled bullets",
+    fx: l => (1 + Math.floor(l / 5)) + " pairs" },
+  { id: "coinFrenzy", name: "Coin Frenzy", icon: "\u{1F4B8}",
+    blurb: "Coin Frenzy power-up multiplies coins more",
+    fx: l => "×" + (2 + 0.1 * l).toFixed(1) },
 ];
+
+/* Power-ups dropped by mystery "?" balls. Timed buffs; upgrades above
+   improve their duration or power. */
+const POWERUPS = {
+  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 5 + 0.5 * upgLevel("shieldUp") },
+  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 7 + 0.5 * upgLevel("twinUp") },
+  spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855", dur: () => 8 },
+  coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0", dur: () => 8 },
+};
 
 /* Difficulty scales how fast balls fall. Bounce heights stay the same. */
 const DIFFICULTIES = [
@@ -750,6 +771,9 @@ function newGame(levelNumber) {
     wheel: equipped("wheel"),
     bulletStyle: equipped("bullet"),
     coins: [],
+    powerups: [],
+    buffs: { shield: 0, twin: 0, spread: 0, coinx: 0 },
+    mysterySpawned: 0,
     phase: "ready",            // ready | running | won | lost
     paused: false,
     balls: [],
@@ -833,6 +857,37 @@ function updateCoins(dt) {
     keep.push(c);
   }
   g.coins = keep;
+}
+
+const twinX = g => Math.min(Math.max(g.cannonX + (g.cannonX > W / 2 ? -100 : 100), 34), W - 34);
+
+function updatePowerups(dt) {
+  const g = game;
+  const cx = g.cannonX, cy = GROUND_H + 20;
+  const keep = [];
+  for (const p of g.powerups) {
+    p.t -= dt;
+    if (p.t <= 0) continue;
+    p.vy -= g.gravity * 0.8 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.x < 16) { p.x = 16; p.vx = Math.abs(p.vx); }
+    else if (p.x > W - 16) { p.x = W - 16; p.vx = -Math.abs(p.vx); }
+    if (p.y - 13 <= GROUND_H && p.vy < 0) {
+      p.y = GROUND_H + 13;
+      p.vy = Math.abs(p.vy) > 90 ? -p.vy * 0.35 : 0;
+      p.vx *= 0.8;
+    }
+    const dx = p.x - cx, dy = p.y - cy;
+    if (dx * dx + dy * dy < 4900) {
+      g.buffs[p.kind] = POWERUPS[p.kind].dur();
+      g.floaters.push({ x: p.x, y: p.y + 20, text: POWERUPS[p.kind].name + "!", t: 0.8 });
+      if (navigator.vibrate) navigator.vibrate(15);
+      continue;
+    }
+    keep.push(p);
+  }
+  g.powerups = keep;
 }
 
 /* Deterministic scatter of dim background dots (stars, sand, snow...). */
@@ -1016,6 +1071,10 @@ function update(dt) {
   }
   if (g.phase !== "running") return;
 
+  // Buffs tick down; unclaimed mystery balls fade out after 14s.
+  for (const k in g.buffs) if (g.buffs[k] > 0) g.buffs[k] = Math.max(0, g.buffs[k] - dt);
+  g.balls = g.balls.filter(b => !b.mystery || (b.life -= dt) > 0);
+
   // Spawn waves.
   if (g.spawned < g.cfg.count) {
     g.spawnAcc += dt;
@@ -1027,6 +1086,14 @@ function update(dt) {
       const vx = (90 + Math.random() * 50) * (g.fromLeft ? 1 : -1);
       g.fromLeft = !g.fromLeft;
       g.balls.push(makeBall(g, g.cfg.tier, g.cfg.hp, x, H + r + 10, vx, 0));
+      // Occasionally a mystery ball drifts in from the other side.
+      if (g.mysterySpawned < 2 && Math.random() < 0.18) {
+        g.mysterySpawned++;
+        const mb = makeBall(g, 0, Math.max(3, g.cfg.hp >> 2), W - x, H + 30, -vx * 0.8, 0);
+        mb.mystery = true;
+        mb.life = 14;
+        g.balls.push(mb);
+      }
     }
   }
 
@@ -1041,14 +1108,25 @@ function update(dt) {
   while (g.fireAcc >= interval && volleys < 4) {
     g.fireAcc -= interval;
     volleys++;
-    const n = g.lo.streams, spacing = 13;
-    const startX = g.cannonX - spacing * (n - 1) / 2;
-    for (let i = 0; i < n; i++) g.bullets.push({ x: startX + i * spacing, y: GROUND_H + 52 });
+    const xs = [g.cannonX];
+    if (g.buffs.twin > 0) xs.push(twinX(g));
+    for (const cx of xs) {
+      const n = g.lo.streams, spacing = 13;
+      const startX = cx - spacing * (n - 1) / 2;
+      for (let i = 0; i < n; i++) g.bullets.push({ x: startX + i * spacing, y: GROUND_H + 52, vx: 0 });
+      if (g.buffs.spread > 0) {
+        const pairs = 1 + Math.floor(upgLevel("spreadUp") / 5);
+        for (let p = 1; p <= pairs; p++) {
+          g.bullets.push({ x: cx, y: GROUND_H + 52, vx: 110 * p });
+          g.bullets.push({ x: cx, y: GROUND_H + 52, vx: -110 * p });
+        }
+      }
+    }
   }
 
   // Bullets.
-  for (const b of g.bullets) b.y += BULLET_SPEED * dt;
-  g.bullets = g.bullets.filter(b => b.y < H + 30);
+  for (const b of g.bullets) { b.y += BULLET_SPEED * dt; b.x += b.vx * dt; }
+  g.bullets = g.bullets.filter(b => b.y < H + 30 && b.x > -20 && b.x < W + 20);
 
   // Balls.
   for (const ball of g.balls) {
@@ -1082,8 +1160,16 @@ function update(dt) {
   for (const ball of g.balls) {
     if (ball.hp > 0) { survivors.push(ball); continue; }
     popped = true;
+    if (ball.mystery) {
+      const kinds = Object.keys(POWERUPS);
+      const kind = kinds[(Math.random() * kinds.length) | 0];
+      g.powerups.push({ x: ball.x, y: ball.y, vx: (Math.random() * 2 - 1) * 80, vy: 220, kind, t: 8 });
+      burst(ball.x, ball.y, "#b15df0", ball.r);
+      continue;
+    }
     g.destroyedHP += ball.maxHP;
-    const value = Math.max(1, Math.round(ball.maxHP * COINS_PER_HP * g.lo.coinMult));
+    let value = Math.max(1, Math.round(ball.maxHP * COINS_PER_HP * g.lo.coinMult));
+    if (g.buffs.coinx > 0) value = Math.round(value * (2 + 0.1 * upgLevel("coinFrenzy")));
     spawnCoinDrops(g, ball.x, ball.y, value);
     burst(ball.x, ball.y, ballColor(g, ball), ball.r);
     if (ball.tier > 0) {
@@ -1101,12 +1187,19 @@ function update(dt) {
     if (navigator.vibrate) navigator.vibrate(8);
   }
   updateCoins(dt);
+  updatePowerups(dt);
 
   // Balls vs cannon — one touch ends the run.
   const cy = GROUND_H + 22;
   for (const ball of g.balls) {
     const dx = ball.x - g.cannonX, dy = ball.y - cy, reach = ball.r + CANNON_HIT_R;
     if (dx * dx + dy * dy < reach * reach) {
+      if (g.buffs.shield > 0) {
+        // Invincible: knock the ball away instead.
+        ball.vy = bounceSpeed(g, ball.tier);
+        ball.vx = (ball.x >= g.cannonX ? 1 : -1) * Math.max(80, Math.abs(ball.vx));
+        continue;
+      }
       g.phase = "lost";
       g.endTimer = 0.8;
       burst(g.cannonX, cy, g.cannon.body, 36);
@@ -1178,16 +1271,27 @@ function draw() {
   for (const ball of g.balls) {
     ctx.beginPath();
     ctx.arc(ball.x, sy(ball.y), ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = ballColor(g, ball);
+    ctx.fillStyle = ball.mystery ? "#b15df0" : ballColor(g, ball);
     ctx.fill();
     ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.strokeStyle = ball.mystery ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.25)";
     ctx.stroke();
     ctx.fillStyle = "#fff";
     ctx.font = "900 " + Math.max(12, ball.r * 0.55) + "px -apple-system, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(shortNum(Math.max(0, ball.hp)), ball.x, sy(ball.y));
+    ctx.fillText(ball.mystery ? "?" : shortNum(Math.max(0, ball.hp)), ball.x, sy(ball.y));
+  }
+
+  // Power-up pickups.
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const p of g.powerups) {
+    if (p.t < 2 && ((p.t * 8) | 0) % 2 === 0) continue;
+    ctx.fillStyle = POWERUPS[p.kind].color;
+    roundRect(p.x - 13, sy(p.y) - 13, 26, 26, 8);
+    ctx.font = "15px sans-serif";
+    ctx.fillText(POWERUPS[p.kind].icon, p.x, sy(p.y));
   }
 
   // Coin pickups (blink when about to expire).
@@ -1203,8 +1307,31 @@ function draw() {
     ctx.stroke();
   }
 
-  // Cannon.
-  if (g.phase !== "lost") drawCannon(g.cannonX, sy(GROUND_H), g.cannon, g.wheel);
+  // Cannon (plus twin cannon and shield ring while those buffs are live).
+  if (g.phase !== "lost") {
+    drawCannon(g.cannonX, sy(GROUND_H), g.cannon, g.wheel);
+    if (g.buffs.twin > 0) drawCannon(twinX(g), sy(GROUND_H), g.cannon, g.wheel);
+    if (g.buffs.shield > 0) {
+      ctx.beginPath();
+      ctx.arc(g.cannonX, sy(GROUND_H + 22), 36, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(120,200,255," +
+        (g.buffs.shield < 1.5 && (((g.buffs.shield * 8) | 0) % 2 === 0) ? 0.2 : 0.8) + ")";
+      ctx.stroke();
+    }
+  }
+
+  // Active buff readout.
+  let bx = 14;
+  ctx.font = "700 13px -apple-system, system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  for (const k in g.buffs) {
+    if (g.buffs[k] <= 0) continue;
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(POWERUPS[k].icon + " " + Math.ceil(g.buffs[k]) + "s", bx, 92);
+    bx += 64;
+  }
 
   // Particles & floating coin text.
   for (const p of g.particles) {
