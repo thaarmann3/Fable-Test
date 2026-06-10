@@ -819,10 +819,10 @@ function newGame(levelNumber) {
    scales with the popped ball's value so late-game drops stay readable.
    Higher tiers are rarer. Uncollected coins expire after 10 seconds. */
 const COIN_TIERS = [
-  { mul: 1,  r: 5,   color: "#c9cdd6" },
-  { mul: 2,  r: 6,   color: "#ffd84d" },
-  { mul: 5,  r: 7.5, color: "#5db5ff" },
-  { mul: 10, r: 9.5, color: "#c95df0" },
+  { mul: 1,  r: 3.5, color: "#c9cdd6" },
+  { mul: 2,  r: 4.5, color: "#ffd84d" },
+  { mul: 5,  r: 5.5, color: "#5db5ff" },
+  { mul: 10, r: 7,   color: "#c95df0" },
 ];
 
 function spawnCoinDrops(g, x, y, value) {
@@ -937,10 +937,27 @@ function makeBall(g, tier, hp, x, y, vx, vy) {
 }
 
 /* Color is standardized across the level: hue runs from blue (full HP,
-   relative to the level's biggest ball) through green/yellow to red at 0. */
-function ballColor(g, ball) {
+   relative to the level's biggest ball) through green/yellow to red at 0.
+   The 0.6 exponent makes the shift gradual instead of plunging to red. */
+function ballHue(g, ball) {
   const f = Math.max(0, Math.min(1, ball.hp / g.cfg.hp));
-  return "hsl(" + Math.round(210 * f) + ", 72%, 55%)";
+  return 210 * Math.pow(f, 0.6);
+}
+function ballColor(g, ball) {
+  return "hsl(" + Math.round(ballHue(g, ball)) + ", 65%, 52%)";
+}
+/* Light border on dark fills, dark border on light fills. */
+function ballBorder(g, ball) {
+  return hslLum(ballHue(g, ball), 0.65, 0.52) < 0.55
+    ? "rgba(255,255,255,0.85)" : "rgba(18,18,30,0.6)";
+}
+function hslLum(h, s, l) {
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+  };
+  return 0.299 * f(0) + 0.587 * f(8) + 0.114 * f(4);
 }
 
 /* ---------- input ---------- */
@@ -1357,12 +1374,28 @@ function draw() {
 
   // Balls.
   for (const ball of g.balls) {
+    const bx = ball.x, by = sy(ball.y), r = ball.r;
     ctx.beginPath();
-    ctx.arc(ball.x, sy(ball.y), ball.r, 0, Math.PI * 2);
+    ctx.arc(bx, by, r, 0, Math.PI * 2);
     ctx.fillStyle = ball.mystery ? "#b15df0" : ballColor(g, ball);
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = ball.mystery ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.25)";
+    // Texture: soft shading toward the bottom-right plus a gloss highlight,
+    // clipped to the ball, so balls read as solid 3D objects.
+    ctx.save();
+    ctx.clip();
+    ctx.beginPath();
+    ctx.arc(bx + r * 0.22, by + r * 0.28, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,15,0.18)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(bx - r * 0.35, by - r * 0.42, r * 0.36, r * 0.22, -0.6, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fill();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(bx, by, r - 1, 0, Math.PI * 2);
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = ball.mystery ? "rgba(255,255,255,0.85)" : ballBorder(g, ball);
     ctx.stroke();
     ctx.fillStyle = "#fff";
     ctx.font = "900 " + Math.max(12, ball.r * 0.55) + "px -apple-system, system-ui, sans-serif";
