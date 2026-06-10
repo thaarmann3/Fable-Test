@@ -1215,7 +1215,8 @@ function update(dt) {
       const n = g.lo.streams, spacing = 13;
       const startX = cx - spacing * (n - 1) / 2;
       for (let i = 0; i < n; i++) g.bullets.push({ x: startX + i * spacing, y: GROUND_H + 52, vx: 0 });
-      if (g.buffs.spread > 0) {
+      // Spread shot only fans out from the main cannon.
+      if (g.buffs.spread > 0 && cx === g.cannonX) {
         const pairs = 1 + Math.floor(upgLevel("spreadUp") / 5);
         for (let p = 1; p <= pairs; p++) {
           g.bullets.push({ x: cx, y: GROUND_H + 52, vx: 110 * p });
