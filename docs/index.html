@@ -809,6 +809,7 @@ function newGame(levelNumber) {
     lo: loadout(),
     gravity: GRAVITY * currentDifficulty().mult,
     theme,
+    ballBorder: themeBallBorder(theme),
     decos: makeDecos(THEMES.indexOf(theme)),
     cannon: equipped("cannon"),
     wheel: equipped("wheel"),
@@ -974,18 +975,15 @@ function ballHue(g, ball) {
 function ballColor(g, ball) {
   return "hsl(" + Math.round(ballHue(g, ball)) + ", 65%, 52%)";
 }
-/* Light border on dark fills, dark border on light fills. */
-function ballBorder(g, ball) {
-  return hslLum(ballHue(g, ball), 0.65, 0.52) < 0.55
-    ? "rgba(255,255,255,0.85)" : "rgba(18,18,30,0.6)";
+/* Ball borders contrast with the level's background: light borders on
+   dark maps, dark borders on light maps. Computed once per level. */
+function hexLum(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return (0.299 * (v >> 16 & 255) + 0.587 * (v >> 8 & 255) + 0.114 * (v & 255)) / 255;
 }
-function hslLum(h, s, l) {
-  const a = s * Math.min(l, 1 - l);
-  const f = n => {
-    const k = (n + h / 30) % 12;
-    return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
-  };
-  return 0.299 * f(0) + 0.587 * f(8) + 0.114 * f(4);
+function themeBallBorder(theme) {
+  const lum = (hexLum(theme.sky[0]) + hexLum(theme.sky[1])) / 2;
+  return lum < 0.45 ? "rgba(255,255,255,0.85)" : "rgba(18,18,30,0.7)";
 }
 
 /* ---------- input ---------- */
@@ -1422,7 +1420,7 @@ function draw() {
     ctx.beginPath();
     ctx.arc(bx, by, r - 1, 0, Math.PI * 2);
     ctx.lineWidth = 3.5;
-    ctx.strokeStyle = ball.mystery ? "rgba(255,255,255,0.85)" : ballBorder(g, ball);
+    ctx.strokeStyle = g.ballBorder;
     ctx.stroke();
     ctx.fillStyle = "#fff";
     ctx.font = "900 " + Math.max(12, ball.r * 0.55) + "px -apple-system, system-ui, sans-serif";
