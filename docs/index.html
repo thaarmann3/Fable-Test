@@ -117,7 +117,8 @@
     background: rgba(255,255,255,0.14); color: #fff; font-size: 14px; cursor: pointer;
   }
   #hudMid { flex: 1; pointer-events: none; }
-  #hudLevel { text-align: center; font-size: 13px; font-weight: 900; opacity: 0.9; margin-bottom: 5px; }
+  #hudLevel { text-align: center; font-size: 13px; font-weight: 900; opacity: 0.9; margin-bottom: 5px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
   #progressTrack { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.15); overflow: hidden; }
   #progressFill { height: 100%; width: 0%; border-radius: 999px; background: var(--yellow); transition: width 0.15s; }
   #hudCoins { font-size: 15px; }
@@ -144,8 +145,8 @@
     align-items: center; justify-content: center; gap: 8px; pointer-events: none;
   }
   #startHint.active { display: flex; }
-  #startHint .big { font-size: 29px; font-weight: 900; }
-  #startHint .small { font-size: 14px; font-weight: 600; opacity: 0.7; }
+  #startHint .big { font-size: 29px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,0.6); }
+  #startHint .small { font-size: 14px; font-weight: 600; opacity: 0.85; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
 
   .center { text-align: center; }
   .reset { background: none; border: 0; color: rgba(255,255,255,0.35);
@@ -479,14 +480,19 @@ function equipped(cat) {
   return item && itemUnlocked(cat, item) ? item : items[0];
 }
 
-/* Map themes rotate every 10 levels as you progress, then cycle. */
+/* Map themes rotate every 10 levels as you progress, then cycle.
+   Dark and bright daytime maps alternate through the rotation. */
 const THEMES = [
   { name: "Midnight", sky: ["#1f2240", "#0d0e1d"], ground: "#242742", line: "#454a75", deco: "rgba(255,255,255,0.30)" },
+  { name: "Daybreak", sky: ["#7ec8f7", "#cfeeff"], ground: "#5da24e", line: "#3d7a35", deco: "rgba(255,255,255,0.85)" },
   { name: "Desert",   sky: ["#54372b", "#1f1410"], ground: "#6b4326", line: "#9c6a3c", deco: "rgba(255,210,150,0.20)" },
+  { name: "Beach",    sky: ["#ffd98a", "#fff3d6"], ground: "#e8c27a", line: "#c79b4e", deco: "rgba(255,140,60,0.30)" },
   { name: "Forest",   sky: ["#1d3a26", "#0b1810"], ground: "#2a4f33", line: "#4d8a59", deco: "rgba(180,255,190,0.18)" },
+  { name: "Sakura",   sky: ["#ffc9dd", "#fff0f5"], ground: "#d98aa8", line: "#b06a88", deco: "rgba(214,80,130,0.35)" },
   { name: "Ocean",    sky: ["#123250", "#071425"], ground: "#1c3f5e", line: "#3c7aa8", deco: "rgba(160,220,255,0.25)" },
   { name: "Tundra",   sky: ["#33495c", "#131e29"], ground: "#3f5a70", line: "#7fa6c4", deco: "rgba(255,255,255,0.45)" },
   { name: "Volcano",  sky: ["#3d1717", "#150707"], ground: "#4a1f17", line: "#8a3a26", deco: "rgba(255,140,80,0.28)" },
+  { name: "Alpine",   sky: ["#cde8f5", "#f2fbff"], ground: "#9fb8c8", line: "#7795a8", deco: "rgba(70,110,140,0.35)" },
   { name: "Cosmos",   sky: ["#241640", "#08040f"], ground: "#2c2150", line: "#5a4392", deco: "rgba(220,180,255,0.38)" },
 ];
 const themeFor = n => THEMES[Math.floor((n - 1) / 10) % THEMES.length];
@@ -1512,8 +1518,12 @@ function draw() {
   ctx.textBaseline = "middle";
   for (const k in g.buffs) {
     if (g.buffs[k] <= 0) continue;
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillText(POWERUPS[k].icon + " " + Math.ceil(g.buffs[k]) + "s", bx, 92);
+    const label = POWERUPS[k].icon + " " + Math.ceil(g.buffs[k]) + "s";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.strokeText(label, bx, 92);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillText(label, bx, 92);
     bx += 64;
   }
 
