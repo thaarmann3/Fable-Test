@@ -699,7 +699,6 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-const PALETTE = ["#ed595f", "#4db0f0", "#8ccc59", "#f29e42", "#b575e8", "#ed73bc", "#5cd4bd"];
 const TIER_R = [16, 26, 40, 58];
 const GRAVITY = 1500;
 const BULLET_SPEED = 1150;
@@ -777,8 +776,14 @@ function bounceSpeed(g, tier) {
 }
 
 function makeBall(g, tier, hp, x, y, vx, vy) {
-  return { tier, hp, maxHP: hp, x, y, vx, vy, r: TIER_R[tier],
-           color: PALETTE[(g.cfg.number - 1 + tier) % PALETTE.length] };
+  return { tier, hp, maxHP: hp, x, y, vx, vy, r: TIER_R[tier] };
+}
+
+/* Color is standardized across the level: hue runs from blue (full HP,
+   relative to the level's biggest ball) through green/yellow to red at 0. */
+function ballColor(g, ball) {
+  const f = Math.max(0, Math.min(1, ball.hp / g.cfg.hp));
+  return "hsl(" + Math.round(210 * f) + ", 72%, 55%)";
 }
 
 /* ---------- input ---------- */
@@ -991,7 +996,7 @@ function update(dt) {
     const value = Math.max(1, Math.round(ball.maxHP * COINS_PER_HP * g.lo.coinMult));
     g.runCoins += value;
     g.floaters.push({ x: ball.x, y: ball.y, text: "+" + shortNum(value), t: 0.6 });
-    burst(ball.x, ball.y, ball.color, ball.r);
+    burst(ball.x, ball.y, ballColor(g, ball), ball.r);
     if (ball.tier > 0) {
       const childHP = Math.max(1, ball.maxHP >> 1);
       const speed = 80 + Math.random() * 50;
@@ -1082,7 +1087,7 @@ function draw() {
   for (const ball of g.balls) {
     ctx.beginPath();
     ctx.arc(ball.x, sy(ball.y), ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = ball.color;
+    ctx.fillStyle = ballColor(g, ball);
     ctx.fill();
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(0,0,0,0.25)";
