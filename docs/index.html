@@ -259,7 +259,7 @@
   <div id="startHint">
     <div class="big">TAP TO START</div>
     <div class="small" id="hintMap"></div>
-    <div class="small">Drag anywhere to move the cannon</div>
+    <div class="small">Hold to fire &mdash; drag to move</div>
   </div>
   <div class="overlay" id="pauseOverlay">
     <h2>PAUSED</h2>
@@ -743,6 +743,7 @@ function newGame(levelNumber) {
     floaters: [],
     cannonX: W / 2,
     targetX: W / 2,
+    firing: false,
     fireAcc: 0,
     spawnAcc: cfg.interval,    // first ball appears immediately
     spawned: 0,
@@ -788,11 +789,14 @@ canvas.addEventListener("pointerdown", e => {
     game.phase = "running";
     document.getElementById("startHint").classList.remove("active");
   }
+  game.firing = true;
   game.targetX = e.clientX;
 });
 canvas.addEventListener("pointermove", e => {
   if (game && game.phase === "running" && !game.paused) game.targetX = e.clientX;
 });
+canvas.addEventListener("pointerup", () => { if (game) game.firing = false; });
+canvas.addEventListener("pointercancel", () => { if (game) game.firing = false; });
 
 /* ---------- pause / overlays ---------- */
 
@@ -931,9 +935,13 @@ function update(dt) {
     }
   }
 
-  // Auto-fire.
-  g.fireAcc += dt;
+  // Fire only while the player is pressing the screen.
   const interval = 1 / g.lo.shotsPerSec;
+  if (!g.firing) {
+    g.fireAcc = interval; // primed: first shot lands the moment they press
+  } else {
+    g.fireAcc += dt;
+  }
   let volleys = 0;
   while (g.fireAcc >= interval && volleys < 4) {
     g.fireAcc -= interval;
