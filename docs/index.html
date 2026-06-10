@@ -371,23 +371,23 @@ const UPGRADES = [
     fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
   { id: "shieldUp", name: "Shield", icon: "\u{1F6E1}",
     blurb: "Invincibility power-up lasts longer",
-    fx: l => (4 + 0.3 * l).toFixed(1) + "s" },
+    fx: l => (4 + 0.09 * l).toFixed(1) + "s" },
   { id: "twinUp", name: "Twin Cannon", icon: "\u{2795}",
     blurb: "Twin cannon power-up lasts longer",
-    fx: l => (5 + 0.4 * l).toFixed(1) + "s" },
+    fx: l => (5 + 0.12 * l).toFixed(1) + "s" },
   { id: "spreadUp", name: "Spread Shot", icon: "\u{1F3AF}",
     blurb: "Spread power-up fires more angled bullets",
-    fx: l => (1 + Math.floor(l / 5)) + " pairs" },
+    fx: l => (1 + Math.floor(l / 16)) + " pairs" },
   { id: "coinFrenzy", name: "Coin Frenzy", icon: "\u{1F4B8}",
     blurb: "Coin Frenzy power-up multiplies coins more",
-    fx: l => "×" + (2 + 0.1 * l).toFixed(1) },
+    fx: l => "×" + (2 + 0.03 * l).toFixed(2) },
 ];
 
 /* Power-ups dropped by mystery "?" balls. Timed buffs; upgrades above
    improve their duration or power. */
 const POWERUPS = {
-  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 4 + 0.3 * upgLevel("shieldUp") },
-  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 5 + 0.4 * upgLevel("twinUp") },
+  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 4 + 0.09 * upgLevel("shieldUp") },
+  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 5 + 0.12 * upgLevel("twinUp") },
   spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855", dur: () => 6 },
   coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0", dur: () => 6 },
 };
@@ -1217,7 +1217,7 @@ function update(dt) {
       for (let i = 0; i < n; i++) g.bullets.push({ x: startX + i * spacing, y: GROUND_H + 52, vx: 0 });
       // Spread shot only fans out from the main cannon.
       if (g.buffs.spread > 0 && cx === g.cannonX) {
-        const pairs = 1 + Math.floor(upgLevel("spreadUp") / 5);
+        const pairs = 1 + Math.floor(upgLevel("spreadUp") / 16);
         for (let p = 1; p <= pairs; p++) {
           g.bullets.push({ x: cx, y: GROUND_H + 52, vx: 110 * p });
           g.bullets.push({ x: cx, y: GROUND_H + 52, vx: -110 * p });
@@ -1310,7 +1310,7 @@ function update(dt) {
     }
     g.destroyedHP += ball.maxHP;
     let value = Math.max(1, Math.round(ball.maxHP * COINS_PER_HP * g.lo.coinMult));
-    if (g.buffs.coinx > 0) value = Math.round(value * (2 + 0.1 * upgLevel("coinFrenzy")));
+    if (g.buffs.coinx > 0) value = Math.round(value * (2 + 0.03 * upgLevel("coinFrenzy")));
     spawnCoinDrops(g, ball.x, ball.y, value);
     burst(ball.x, ball.y, ballColor(g, ball), ball.r);
     if (ball.tier > 0) {
