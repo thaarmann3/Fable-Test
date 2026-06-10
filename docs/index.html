@@ -75,6 +75,11 @@
   .lvl.current { background: var(--yellow); color: #111; }
   .lvl .sub { font-size: 11px; font-weight: 700; }
   .lvl .crown { font-size: 12px; }
+  .mapHdr {
+    grid-column: 1 / -1; padding: 12px 2px 2px;
+    font-size: 12px; font-weight: 900; letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.45);
+  }
 
   /* Upgrade cards */
   .card {
@@ -147,6 +152,27 @@
     font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 10px; }
   .statline { color: rgba(255,255,255,0.55); font-size: 13px; font-weight: 600; }
 
+  /* Cannon skin cards */
+  .skinCard {
+    display: flex; align-items: center; gap: 13px;
+    background: var(--panel); border-radius: 17px; padding: 13px; margin-bottom: 12px;
+  }
+  .skinCard.sel { outline: 2px solid var(--yellow); }
+  .skinCard .preview {
+    width: 60px; height: 60px; border-radius: 13px; flex: 0 0 auto;
+    background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center;
+  }
+  .skinCard .info { flex: 1; min-width: 0; }
+  .skinCard .name { font-size: 16px; font-weight: 900; }
+  .skinCard .req { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.5); margin-top: 2px; }
+  .skinCard .action {
+    border: 0; border-radius: 12px; min-width: 76px; height: 44px; flex: 0 0 auto;
+    font-family: inherit; font-size: 13px; font-weight: 900; cursor: pointer; padding: 0 12px;
+    background: var(--yellow); color: #111;
+  }
+  .skinCard .action.cant { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); }
+  .skinCard .action.sel { background: rgba(255,255,255,0.08); color: var(--yellow); }
+
   /* Difficulty selector */
   .diffLabel { font-size: 12px; font-weight: 800; letter-spacing: 1px;
     color: rgba(255,255,255,0.45); margin-bottom: 7px; }
@@ -176,6 +202,7 @@
     </button>
     <button class="btn" id="levelsBtn">&#9638;&nbsp; Levels</button>
     <button class="btn" id="upgradesBtn">&#8679;&nbsp; Upgrades</button>
+    <button class="btn" id="cannonsBtn">&#9678;&nbsp; Customize</button>
   </div>
   <div class="center" style="margin-top:22px">
     <div class="diffLabel">BALL SPEED</div>
@@ -206,6 +233,18 @@
   <div class="scroll"><div id="upgradeList"></div></div>
 </div>
 
+<!-- CANNON SKINS -->
+<div id="cannonsScreen" class="screen">
+  <div class="topbar">
+    <button class="back" data-nav="menu">&#8592;</button>
+    <h2>Customize</h2>
+    <div class="spacer"></div>
+  </div>
+  <div class="center" style="margin-bottom:10px"><span class="pill"><span class="coin"></span><span id="skinCoins">0</span></span></div>
+  <div class="center" style="margin-bottom:12px"><div class="seg" id="cosTabs"></div></div>
+  <div class="scroll"><div id="skinList"></div></div>
+</div>
+
 <!-- GAME -->
 <div id="gameScreen" class="screen">
   <canvas id="canvas"></canvas>
@@ -219,6 +258,7 @@
   </div>
   <div id="startHint">
     <div class="big">TAP TO START</div>
+    <div class="small" id="hintMap"></div>
     <div class="small">Drag anywhere to move the cannon</div>
   </div>
   <div class="overlay" id="pauseOverlay">
@@ -249,18 +289,33 @@ catch (e) { storageOK = false; }
 const state = loadState();
 
 function loadState() {
-  const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal" };
+  const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal",
+                  equipped: { cannon: "classic", bullet: "standard", wheel: "standard" },
+                  owned: {} };
   if (!storageOK) return fresh;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return fresh;
     const s = JSON.parse(raw);
+    // Migrate older saves that used a single "skin" field.
+    const eq = s.equipped || {};
+    let owned = s.owned;
+    if (!owned) {
+      owned = {};
+      if (s.ownedSkins) for (const k in s.ownedSkins) owned["cannon:" + k] = true;
+    }
     return {
       coins: Math.max(0, s.coins | 0),
       highest: Math.max(1, s.highest | 0),
       completed: s.completed || {},
       upg: s.upg || {},
       difficulty: typeof s.difficulty === "string" ? s.difficulty : "normal",
+      equipped: {
+        cannon: eq.cannon || s.skin || "classic",
+        bullet: eq.bullet || "standard",
+        wheel: eq.wheel || "standard",
+      },
+      owned,
     };
   } catch (e) { return fresh; }
 }
@@ -298,6 +353,86 @@ const DIFFICULTIES = [
 ];
 const currentDifficulty = () =>
   DIFFICULTIES.find(d => d.id === state.difficulty) || DIFFICULTIES[1];
+
+/* ============================== Cosmetics ============================== */
+
+/* Three customization categories. Items unlock by reaching a level
+   milestone (level) or by spending coins (cost); no field = default. */
+const COSMETICS = {
+  cannon: {
+    label: "Cannon",
+    items: [
+      { id: "classic",   name: "Classic",   body: "#ffcc26", dark: "#2a2a3a" },
+      { id: "crimson",   name: "Crimson",   body: "#f25555", dark: "#33181d", level: 5 },
+      { id: "tangerine", name: "Tangerine", body: "#ff9a3c", dark: "#3a2410", level: 10 },
+      { id: "emerald",   name: "Emerald",   body: "#52d273", dark: "#142a1b", level: 15 },
+      { id: "ocean",     name: "Ocean",     body: "#4db0f0", dark: "#102a3d", level: 20 },
+      { id: "rose",      name: "Rose",      body: "#f06cb2", dark: "#38142a", level: 25 },
+      { id: "frost",     name: "Frost",     body: "#a8e4ff", dark: "#1d3442", level: 35 },
+      { id: "toxic",     name: "Toxic",     body: "#b8e83c", dark: "#28330e", level: 50 },
+      { id: "royal",     name: "Royal",     body: "#8a5cf0", dark: "#1f1338", level: 65 },
+      { id: "shadow",    name: "Shadow",    body: "#3c3c4a", dark: "#101016", level: 80 },
+      { id: "pearl",     name: "Pearl",     body: "#f2f2f7", dark: "#5a5a6e", level: 100 },
+      { id: "neon",      name: "Neon",      body: "#c95df0", dark: "#220f33", cost: 2500 },
+      { id: "mint",      name: "Mint",      body: "#7ce8c4", dark: "#143228", cost: 5000 },
+      { id: "magma",     name: "Magma",     body: "#f0563c", dark: "#330d06", cost: 12000 },
+      { id: "gold",      name: "Gold",      body: "#ffd93e", dark: "#5c4612", cost: 25000 },
+      { id: "ruby",      name: "Ruby",      body: "#e8244e", dark: "#36081a", cost: 50000 },
+    ],
+  },
+  bullet: {
+    label: "Bullets",
+    items: [
+      { id: "standard", name: "Standard",  color: "#ffeb80", w: 5, h: 16 },
+      { id: "ember",    name: "Ember",     color: "#ffaa44", w: 5, h: 16, level: 8 },
+      { id: "shard",    name: "Ice Shard", color: "#7ce0ff", w: 4, h: 18, level: 18 },
+      { id: "venom",    name: "Venom",     color: "#9ef25c", w: 5, h: 16, level: 28 },
+      { id: "rosefire", name: "Rosefire",  color: "#ff7cc8", w: 5, h: 16, level: 40 },
+      { id: "violet",   name: "Violet",    color: "#c490ff", w: 5, h: 16, level: 55 },
+      { id: "blade",    name: "Blade",     color: "#ffffff", w: 3, h: 21, cost: 2000 },
+      { id: "heavy",    name: "Heavy",     color: "#ff8855", w: 8, h: 13, cost: 8000 },
+      { id: "gold",     name: "Gold",      color: "#ffd93e", w: 6, h: 16, cost: 20000 },
+      { id: "laser",    name: "Laser",     color: "#ff4d6a", w: 4, h: 26, cost: 40000 },
+    ],
+  },
+  wheel: {
+    label: "Wheels",
+    items: [
+      { id: "standard", name: "Standard", tire: "#2a2a3a", hub: "#8c8c99" },
+      { id: "crimson",  name: "Crimson",  tire: "#5c1f26", hub: "#f0a0a8", level: 12 },
+      { id: "ice",      name: "Ice",      tire: "#274a5e", hub: "#bce8ff", level: 30 },
+      { id: "forest",   name: "Forest",   tire: "#234a2c", hub: "#a8e8b8", level: 45 },
+      { id: "royal",    name: "Royal",    tire: "#33205e", hub: "#cdb2ff", level: 70 },
+      { id: "chrome",   name: "Chrome",   tire: "#9aa2b5", hub: "#ffffff", cost: 3000 },
+      { id: "gold",     name: "Gold",     tire: "#8a6d1c", hub: "#ffe98a", cost: 15000 },
+      { id: "neon",     name: "Neon",     tire: "#3d1052", hub: "#ff5df0", cost: 30000 },
+    ],
+  },
+};
+
+const ownKey = (cat, id) => cat + ":" + id;
+function itemUnlocked(cat, item) {
+  if (item.level) return state.highest >= item.level;
+  if (item.cost) return !!state.owned[ownKey(cat, item.id)];
+  return true;
+}
+function equipped(cat) {
+  const items = COSMETICS[cat].items;
+  const item = items.find(i => i.id === state.equipped[cat]);
+  return item && itemUnlocked(cat, item) ? item : items[0];
+}
+
+/* Map themes rotate every 10 levels as you progress, then cycle. */
+const THEMES = [
+  { name: "Midnight", sky: ["#1f2240", "#0d0e1d"], ground: "#242742", line: "#454a75", deco: "rgba(255,255,255,0.30)" },
+  { name: "Desert",   sky: ["#54372b", "#1f1410"], ground: "#6b4326", line: "#9c6a3c", deco: "rgba(255,210,150,0.20)" },
+  { name: "Forest",   sky: ["#1d3a26", "#0b1810"], ground: "#2a4f33", line: "#4d8a59", deco: "rgba(180,255,190,0.18)" },
+  { name: "Ocean",    sky: ["#123250", "#071425"], ground: "#1c3f5e", line: "#3c7aa8", deco: "rgba(160,220,255,0.25)" },
+  { name: "Tundra",   sky: ["#33495c", "#131e29"], ground: "#3f5a70", line: "#7fa6c4", deco: "rgba(255,255,255,0.45)" },
+  { name: "Volcano",  sky: ["#3d1717", "#150707"], ground: "#4a1f17", line: "#8a3a26", deco: "rgba(255,140,80,0.28)" },
+  { name: "Cosmos",   sky: ["#241640", "#08040f"], ground: "#2c2150", line: "#5a4392", deco: "rgba(220,180,255,0.38)" },
+];
+const themeFor = n => THEMES[Math.floor((n - 1) / 10) % THEMES.length];
 
 const upgLevel = id => state.upg[id] | 0;
 const upgCost = u => {
@@ -349,6 +484,7 @@ const screens = {
   menu: document.getElementById("menuScreen"),
   levels: document.getElementById("levelsScreen"),
   upgrades: document.getElementById("upgradesScreen"),
+  cannons: document.getElementById("cannonsScreen"),
   game: document.getElementById("gameScreen"),
 };
 let currentScreen = "menu";
@@ -360,14 +496,18 @@ function show(name) {
   if (name === "menu") renderMenu();
   if (name === "levels") renderLevels();
   if (name === "upgrades") renderUpgrades();
+  if (name === "cannons") renderCustomize();
 }
 
 document.getElementById("playBtn").onclick = () => startGame(state.highest);
 document.getElementById("levelsBtn").onclick = () => show("levels");
 document.getElementById("upgradesBtn").onclick = () => { upgradesReturnTo = "menu"; show("upgrades"); };
+document.getElementById("cannonsBtn").onclick = () => show("cannons");
 document.getElementById("resetBtn").onclick = () => {
-  if (confirm("Reset all progress? Coins, upgrades and levels will be erased.")) {
+  if (confirm("Reset all progress? Coins, upgrades, levels and cosmetics will be erased.")) {
     state.coins = 0; state.highest = 1; state.completed = {}; state.upg = {};
+    state.equipped = { cannon: "classic", bullet: "standard", wheel: "standard" };
+    state.owned = {};
     saveState(); renderMenu();
   }
 };
@@ -398,6 +538,12 @@ function renderLevels() {
   grid.innerHTML = "";
   const count = Math.max(60, state.highest + 12);
   for (let n = 1; n <= count; n++) {
+    if ((n - 1) % 10 === 0) {
+      const hdr = document.createElement("div");
+      hdr.className = "mapHdr";
+      hdr.textContent = themeFor(n).name.toUpperCase() + " MAP";
+      grid.appendChild(hdr);
+    }
     const unlocked = n <= state.highest;
     const completed = !!state.completed[n];
     const isBoss = n % 10 === 0;
@@ -450,6 +596,94 @@ function renderUpgrades() {
   }
 }
 
+function previewSVG(cat, item) {
+  if (cat === "cannon") {
+    return '<svg width="52" height="52" viewBox="0 0 64 64">' +
+      '<rect x="27" y="6" width="10" height="22" rx="3" fill="' + item.dark + '"/>' +
+      '<circle cx="32" cy="34" r="13" fill="' + item.body + '"/>' +
+      '<rect x="24" y="27" width="16" height="6" rx="3" fill="' + item.dark + '"/>' +
+      '<circle cx="23" cy="48" r="7" fill="#222"/><circle cx="41" cy="48" r="7" fill="#222"/>' +
+      '<circle cx="23" cy="48" r="2.5" fill="#888"/><circle cx="41" cy="48" r="2.5" fill="#888"/>' +
+      "</svg>";
+  }
+  if (cat === "wheel") {
+    return '<svg width="52" height="52" viewBox="0 0 64 64">' +
+      '<circle cx="32" cy="32" r="17" fill="' + item.tire + '"/>' +
+      '<circle cx="32" cy="32" r="6" fill="' + item.hub + '"/>' +
+      "</svg>";
+  }
+  const w = item.w * 2.8, h = item.h * 2.8;
+  return '<svg width="52" height="52" viewBox="0 0 64 64">' +
+    '<rect x="' + (32 - w / 2) + '" y="' + (32 - h / 2) + '" width="' + w + '" height="' + h +
+    '" rx="' + (w / 2) + '" fill="' + item.color + '"/></svg>';
+}
+
+let cosmeticTab = "cannon";
+
+function renderCustomize() {
+  document.getElementById("skinCoins").textContent = shortNum(state.coins);
+
+  const tabs = document.getElementById("cosTabs");
+  tabs.innerHTML = "";
+  for (const cat in COSMETICS) {
+    const b = document.createElement("button");
+    b.textContent = COSMETICS[cat].label;
+    b.className = cat === cosmeticTab ? "sel" : "";
+    b.onclick = () => { cosmeticTab = cat; renderCustomize(); };
+    tabs.appendChild(b);
+  }
+
+  const cat = cosmeticTab;
+  const list = document.getElementById("skinList");
+  list.innerHTML = "";
+  const selected = equipped(cat).id;
+  for (const item of COSMETICS[cat].items) {
+    const unlocked = itemUnlocked(cat, item);
+    const card = document.createElement("div");
+    card.className = "skinCard" + (item.id === selected ? " sel" : "");
+
+    let req = "Default";
+    if (item.level) req = unlocked ? "Unlocked at level " + item.level
+                                   : "Reach level " + item.level + " (best: " + state.highest + ")";
+    if (item.cost) req = unlocked ? "Purchased" : "Buy for " + shortNum(item.cost) + " coins";
+
+    card.innerHTML =
+      '<div class="preview">' + previewSVG(cat, item) + '</div>' +
+      '<div class="info"><div class="name">' + item.name + '</div><div class="req">' + req + "</div></div>";
+
+    const action = document.createElement("button");
+    if (item.id === selected) {
+      action.className = "action sel";
+      action.textContent = "✓ On";
+      action.disabled = true;
+    } else if (unlocked) {
+      action.className = "action";
+      action.textContent = "Select";
+      action.onclick = () => { state.equipped[cat] = item.id; saveState(); renderCustomize(); };
+    } else if (item.cost) {
+      const afford = state.coins >= item.cost;
+      action.className = "action" + (afford ? "" : " cant");
+      action.textContent = "$ " + shortNum(item.cost);
+      action.disabled = !afford;
+      action.onclick = () => {
+        if (state.coins >= item.cost) {
+          state.coins -= item.cost;
+          state.owned[ownKey(cat, item.id)] = true;
+          state.equipped[cat] = item.id;
+          saveState();
+          renderCustomize();
+        }
+      };
+    } else {
+      action.className = "action cant";
+      action.textContent = "Lv " + item.level;
+      action.disabled = true;
+    }
+    card.appendChild(action);
+    list.appendChild(card);
+  }
+}
+
 /* ============================== Game ============================== */
 
 const canvas = document.getElementById("canvas");
@@ -479,6 +713,7 @@ function startGame(levelNumber) {
   game = newGame(levelNumber);
   show("game");
   document.getElementById("hudLevel").textContent = (game.cfg.isBoss ? "BOSS " : "LEVEL ") + levelNumber;
+  document.getElementById("hintMap").textContent = game.theme.name.toUpperCase() + " MAP";
   document.getElementById("progressFill").style.width = "0%";
   document.getElementById("gameCoins").textContent = shortNum(state.coins);
   document.getElementById("startHint").classList.add("active");
@@ -489,11 +724,17 @@ function startGame(levelNumber) {
 
 function newGame(levelNumber) {
   const cfg = levelConfig(levelNumber);
+  const theme = themeFor(levelNumber);
   return {
     level: levelNumber,
     cfg,
     lo: loadout(),
     gravity: GRAVITY * currentDifficulty().mult,
+    theme,
+    decos: makeDecos(THEMES.indexOf(theme)),
+    cannon: equipped("cannon"),
+    wheel: equipped("wheel"),
+    bulletStyle: equipped("bullet"),
     phase: "ready",            // ready | running | won | lost
     paused: false,
     balls: [],
@@ -512,6 +753,17 @@ function newGame(levelNumber) {
     endTimer: 0,
     lastT: 0,
   };
+}
+
+/* Deterministic scatter of dim background dots (stars, sand, snow...). */
+function makeDecos(seed) {
+  let s = (seed + 1) * 7919;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const decos = [];
+  for (let i = 0; i < 36; i++) {
+    decos.push({ x: rnd(), y: rnd(), r: 0.8 + rnd() * 2.2 });
+  }
+  return decos;
 }
 
 function bounceSpeed(g, tier) {
@@ -755,7 +1007,7 @@ function update(dt) {
     if (dx * dx + dy * dy < reach * reach) {
       g.phase = "lost";
       g.endTimer = 0.8;
-      burst(g.cannonX, cy, "#ffcc26", 36);
+      burst(g.cannonX, cy, g.cannon.body, 36);
       if (navigator.vibrate) navigator.vibrate([30, 40, 60]);
       return;
     }
@@ -791,19 +1043,32 @@ function draw() {
   const g = game;
   ctx.clearRect(0, 0, W, H);
 
-  // Background and ground (canvas Y is flipped vs the sim: sim Y up, canvas Y down).
-  ctx.fillStyle = "#14172a";
+  // Themed background and ground (canvas Y is flipped vs the sim: sim Y up, canvas Y down).
+  const th = g.theme;
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, th.sky[0]);
+  grad.addColorStop(1, th.sky[1]);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#242742";
+
+  ctx.fillStyle = th.deco;
+  for (const d of g.decos) {
+    ctx.beginPath();
+    ctx.arc(d.x * W, d.y * (H - GROUND_H) * 0.92, d.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = th.ground;
   ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
-  ctx.fillStyle = "#454a75";
+  ctx.fillStyle = th.line;
   ctx.fillRect(0, H - GROUND_H - 2, W, 3);
 
   const sy = y => H - y;
 
   // Bullets.
-  ctx.fillStyle = "#ffeb80";
-  for (const b of g.bullets) ctx.fillRect(b.x - 2.5, sy(b.y) - 8, 5, 16);
+  const bs = g.bulletStyle;
+  ctx.fillStyle = bs.color;
+  for (const b of g.bullets) ctx.fillRect(b.x - bs.w / 2, sy(b.y) - bs.h / 2, bs.w, bs.h);
 
   // Balls.
   for (const ball of g.balls) {
@@ -822,7 +1087,7 @@ function draw() {
   }
 
   // Cannon.
-  if (g.phase !== "lost") drawCannon(g.cannonX, sy(GROUND_H));
+  if (g.phase !== "lost") drawCannon(g.cannonX, sy(GROUND_H), g.cannon, g.wheel);
 
   // Particles & floating coin text.
   for (const p of g.particles) {
@@ -844,28 +1109,27 @@ function draw() {
   ctx.globalAlpha = 1;
 }
 
-function drawCannon(x, groundY) {
-  const dark = "#2a2a3a";
+function drawCannon(x, groundY, c, w) {
   // Barrel.
-  ctx.fillStyle = dark;
+  ctx.fillStyle = c.dark;
   roundRect(x - 9, groundY - 58, 18, 38, 5);
   // Body.
   ctx.beginPath();
   ctx.arc(x, groundY - 24, 22, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffcc26";
+  ctx.fillStyle = c.body;
   ctx.fill();
   // Visor.
-  ctx.fillStyle = dark;
+  ctx.fillStyle = c.dark;
   roundRect(x - 13, groundY - 32, 26, 9, 4.5);
   // Wheels.
   for (const wx of [-15, 15]) {
     ctx.beginPath();
     ctx.arc(x + wx, groundY - 10, 10, 0, Math.PI * 2);
-    ctx.fillStyle = dark;
+    ctx.fillStyle = w.tire;
     ctx.fill();
     ctx.beginPath();
     ctx.arc(x + wx, groundY - 10, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = "#8c8c99";
+    ctx.fillStyle = w.hub;
     ctx.fill();
   }
 }
