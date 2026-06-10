@@ -1083,6 +1083,30 @@ function update(dt) {
   for (const k in g.buffs) if (g.buffs[k] > 0) g.buffs[k] = Math.max(0, g.buffs[k] - dt);
   g.balls = g.balls.filter(b => !b.mystery || (b.life -= dt) > 0);
 
+  // Boss attacks: telegraphed slams, dashes at the player, minion summons.
+  for (const ball of g.balls) {
+    if (!ball.isBoss) continue;
+    if (Math.abs(ball.vx) > 150) ball.vx *= Math.max(0, 1 - 0.35 * dt); // dash decays
+    if (ball.tele > 0) {
+      ball.tele -= dt;
+      if (ball.tele <= 0) ball.vy = -1500; // slam!
+      continue;
+    }
+    ball.atkT -= dt;
+    if (ball.atkT > 0) continue;
+    ball.atkT = 4.5 + Math.random() * 3;
+    const pick = Math.random();
+    if (pick < 0.4) {
+      ball.tele = 0.7; // flash, then slam straight down
+    } else if (pick < 0.7) {
+      ball.vx = (g.cannonX > ball.x ? 1 : -1) * 420; // dash toward the cannon
+    } else if (g.balls.length < 24) {
+      for (const dir of [-1, 1]) { // summon two minions
+        g.balls.push(makeBall(g, 0, Math.max(2, g.cfg.hp >> 3), ball.x, ball.y, 120 * dir, 380));
+      }
+    }
+  }
+
   // Spawn waves.
   if (g.spawned < g.cfg.count) {
     g.spawnAcc += dt;
@@ -1093,7 +1117,9 @@ function update(dt) {
       const x = g.fromLeft ? 50 : W - 50;
       const vx = (90 + Math.random() * 50) * (g.fromLeft ? 1 : -1);
       g.fromLeft = !g.fromLeft;
-      g.balls.push(makeBall(g, g.cfg.tier, g.cfg.hp, x, H + r + 10, vx, 0));
+      const nb = makeBall(g, g.cfg.tier, g.cfg.hp, x, H + r + 10, vx, 0);
+      if (g.cfg.isBoss) { nb.isBoss = true; nb.atkT = 3 + Math.random() * 2; nb.tele = 0; }
+      g.balls.push(nb);
       // Occasionally a mystery ball drifts in from the other side.
       if (g.mysterySpawned < 2 && Math.random() < 0.18) {
         g.mysterySpawned++;
@@ -1328,6 +1354,17 @@ function draw() {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(ball.mystery ? "?" : shortNum(Math.max(0, ball.hp)), ball.x, sy(ball.y));
+    if (ball.isBoss) {
+      ctx.font = "900 " + Math.max(14, ball.r * 0.45) + "px sans-serif";
+      ctx.fillText("\u{1F451}", ball.x, sy(ball.y + ball.r + 14));
+      if (ball.tele > 0 && ((ball.tele * 10) | 0) % 2 === 0) {
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+        ctx.beginPath();
+        ctx.arc(ball.x, sy(ball.y), ball.r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
   }
 
   // Power-up pickups.
