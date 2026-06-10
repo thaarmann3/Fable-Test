@@ -365,10 +365,10 @@ const UPGRADES = [
     fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
   { id: "shieldUp", name: "Shield", icon: "\u{1F6E1}",
     blurb: "Invincibility power-up lasts longer",
-    fx: l => (3 + 0.25 * l).toFixed(1) + "s" },
+    fx: l => (4 + 0.3 * l).toFixed(1) + "s" },
   { id: "twinUp", name: "Twin Cannon", icon: "\u{2795}",
     blurb: "Twin cannon power-up lasts longer",
-    fx: l => (4 + 0.3 * l).toFixed(1) + "s" },
+    fx: l => (5 + 0.4 * l).toFixed(1) + "s" },
   { id: "spreadUp", name: "Spread Shot", icon: "\u{1F3AF}",
     blurb: "Spread power-up fires more angled bullets",
     fx: l => (1 + Math.floor(l / 5)) + " pairs" },
@@ -380,10 +380,10 @@ const UPGRADES = [
 /* Power-ups dropped by mystery "?" balls. Timed buffs; upgrades above
    improve their duration or power. */
 const POWERUPS = {
-  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 3 + 0.25 * upgLevel("shieldUp") },
-  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 4 + 0.3 * upgLevel("twinUp") },
-  spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855", dur: () => 5 },
-  coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0", dur: () => 5 },
+  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 4 + 0.3 * upgLevel("shieldUp") },
+  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 5 + 0.4 * upgLevel("twinUp") },
+  spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855", dur: () => 6 },
+  coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0", dur: () => 6 },
 };
 
 /* Difficulty scales how fast balls fall. Bounce heights stay the same. */
@@ -511,8 +511,8 @@ function levelConfig(n) {
   let tier = 2;
   if (n < 4) tier = 1;
   else if (n % 7 === 0 && n >= 8) tier = 3;
-  return { number: n, count: Math.min(3 + Math.floor((n - 1) / 2), 12), tier, hp: baseHP,
-           interval: Math.max(2.0, 4.6 - 0.07 * n), isBoss, firstReward: 50 + 28 * n, replayReward: 8 + 4 * n };
+  return { number: n, count: Math.min(4 + Math.floor((n - 1) / 2), 14), tier, hp: baseHP,
+           interval: Math.max(2.4, 5.0 - 0.06 * n), isBoss, firstReward: 50 + 28 * n, replayReward: 8 + 4 * n };
 }
 
 function totalHPPool(cfg) {
