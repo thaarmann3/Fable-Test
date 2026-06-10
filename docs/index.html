@@ -855,24 +855,24 @@ function newGame(levelNumber) {
    scales with the popped ball's value so late-game drops stay readable.
    Higher tiers are rarer. Uncollected coins expire after 10 seconds. */
 const COIN_TIERS = [
-  { mul: 1,  r: 3.5, color: "#c9cdd6" },
-  { mul: 2,  r: 4.5, color: "#ffd84d" },
-  { mul: 5,  r: 5.5, color: "#5db5ff" },
-  { mul: 10, r: 7,   color: "#c95df0" },
+  { mul: 1,  r: 2.8, color: "#c9cdd6" },
+  { mul: 2,  r: 3.6, color: "#ffd84d" },
+  { mul: 5,  r: 4.4, color: "#5db5ff" },
+  { mul: 10, r: 5.6, color: "#c95df0" },
 ];
 
 function spawnCoinDrops(g, x, y, value) {
-  // At most 4 drops per pop (same total value, less visual noise).
-  const unit = Math.max(1, Math.ceil(value / 8));
+  // At most 3 drops per pop (same total value, less visual noise).
+  const unit = Math.max(1, Math.ceil(value / 6));
   let remaining = value, n = 0;
-  while (remaining > 0 && n < 4) {
+  while (remaining > 0 && n < 3) {
     let tier = 0;
     const roll = Math.random() * 100;
     if (roll > 95) tier = 3; else if (roll > 82) tier = 2; else if (roll > 55) tier = 1;
     while (tier > 0 && COIN_TIERS[tier].mul * unit > remaining) tier--;
     let v = Math.min(remaining, COIN_TIERS[tier].mul * unit);
     n++;
-    if (n === 4 || remaining - v < unit) v = remaining; // fold the leftover in
+    if (n === 3 || remaining - v < unit) v = remaining; // fold the leftover in
     remaining -= v;
     g.coins.push({ x, y, vx: (Math.random() * 2 - 1) * 150, vy: 120 + Math.random() * 260,
                    tier, value: v, t: 10, s: Math.random() * Math.PI * 2 });
