@@ -73,6 +73,19 @@ struct RootView: View {
                         } label: {
                             menuRowLabel("arrow.up.circle.fill", "Upgrades")
                         }
+
+                        VStack(spacing: 7) {
+                            Text("BALL SPEED")
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.45))
+                            Picker("Ball Speed", selection: difficultyBinding) {
+                                ForEach(Difficulty.allCases) { difficulty in
+                                    Text(difficulty.displayName).tag(difficulty)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        .padding(.top, 10)
                     }
                     .padding(.horizontal, 36)
 
@@ -111,6 +124,11 @@ struct RootView: View {
 
     private var nextLevel: Int {
         state.highestUnlockedLevel
+    }
+
+    private var difficultyBinding: Binding<Difficulty> {
+        Binding(get: { state.difficulty },
+                set: { state.setDifficulty($0) })
     }
 
     private var statsLine: String {

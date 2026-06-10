@@ -19,6 +19,35 @@ struct PlayerLoadout {
     let coinMultiplier: Double
 }
 
+/// Scales how fast balls fall. Bounce heights stay the same across
+/// difficulties — only the fall speed changes.
+enum Difficulty: String, CaseIterable, Identifiable {
+    case easy
+    case normal
+    case hard
+    case insane
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .easy: return "Easy"
+        case .normal: return "Normal"
+        case .hard: return "Hard"
+        case .insane: return "Insane"
+        }
+    }
+
+    var gravityMultiplier: Double {
+        switch self {
+        case .easy: return 0.5
+        case .normal: return 0.7
+        case .hard: return 1.0
+        case .insane: return 1.3
+        }
+    }
+}
+
 enum UpgradeType: String, CaseIterable, Identifiable {
     case firepower
     case fireRate
@@ -102,6 +131,7 @@ final class GameState: ObservableObject {
     @Published private(set) var highestUnlockedLevel: Int
     @Published private(set) var completedLevels: Set<Int>
     @Published private(set) var upgradeLevels: [String: Int]
+    @Published private(set) var difficulty: Difficulty
 
     private static let storageKey = "BallBlastSave.v1"
 
@@ -110,16 +140,19 @@ final class GameState: ObservableObject {
         var highestUnlockedLevel: Int
         var completedLevels: Set<Int>
         var upgradeLevels: [String: Int]
+        var difficulty: String?
     }
 
     init(coins: Int = 0,
          highestUnlockedLevel: Int = 1,
          completedLevels: Set<Int> = [],
-         upgradeLevels: [String: Int] = [:]) {
+         upgradeLevels: [String: Int] = [:],
+         difficulty: Difficulty = .normal) {
         self.coins = coins
         self.highestUnlockedLevel = max(1, highestUnlockedLevel)
         self.completedLevels = completedLevels
         self.upgradeLevels = upgradeLevels
+        self.difficulty = difficulty
     }
 
     static func load() -> GameState {
@@ -130,17 +163,24 @@ final class GameState: ObservableObject {
         return GameState(coins: snap.coins,
                          highestUnlockedLevel: snap.highestUnlockedLevel,
                          completedLevels: snap.completedLevels,
-                         upgradeLevels: snap.upgradeLevels)
+                         upgradeLevels: snap.upgradeLevels,
+                         difficulty: snap.difficulty.flatMap(Difficulty.init(rawValue:)) ?? .normal)
     }
 
     private func save() {
         let snap = Snapshot(coins: coins,
                             highestUnlockedLevel: highestUnlockedLevel,
                             completedLevels: completedLevels,
-                            upgradeLevels: upgradeLevels)
+                            upgradeLevels: upgradeLevels,
+                            difficulty: difficulty.rawValue)
         if let data = try? JSONEncoder().encode(snap) {
             UserDefaults.standard.set(data, forKey: Self.storageKey)
         }
+    }
+
+    func setDifficulty(_ newValue: Difficulty) {
+        difficulty = newValue
+        save()
     }
 
     // MARK: - Upgrades

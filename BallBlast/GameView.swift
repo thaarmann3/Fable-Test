@@ -74,7 +74,8 @@ struct GameView: View {
         let config = LevelConfig.level(level)
         let newScene = GameScene(size: UIScreen.main.bounds.size,
                                  config: config,
-                                 loadout: state.loadout)
+                                 loadout: state.loadout,
+                                 gravityMultiplier: state.difficulty.gravityMultiplier)
         newScene.onStarted = { started = true }
         newScene.onRunCoinsChanged = { runCoins = $0 }
         newScene.onProgressChanged = { progress = $0 }

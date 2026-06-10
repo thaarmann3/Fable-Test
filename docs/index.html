@@ -146,6 +146,18 @@
   .reset { background: none; border: 0; color: rgba(255,255,255,0.35);
     font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 10px; }
   .statline { color: rgba(255,255,255,0.55); font-size: 13px; font-weight: 600; }
+
+  /* Difficulty selector */
+  .diffLabel { font-size: 12px; font-weight: 800; letter-spacing: 1px;
+    color: rgba(255,255,255,0.45); margin-bottom: 7px; }
+  .seg { display: inline-flex; gap: 5px; background: rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 4px; }
+  .seg button {
+    border: 0; border-radius: 9px; padding: 8px 13px; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 800;
+    background: transparent; color: rgba(255,255,255,0.55);
+  }
+  .seg button.sel { background: var(--yellow); color: #111; }
 </style>
 </head>
 <body>
@@ -164,6 +176,10 @@
     </button>
     <button class="btn" id="levelsBtn">&#9638;&nbsp; Levels</button>
     <button class="btn" id="upgradesBtn">&#8679;&nbsp; Upgrades</button>
+  </div>
+  <div class="center" style="margin-top:22px">
+    <div class="diffLabel">BALL SPEED</div>
+    <div class="seg" id="diffSeg"></div>
   </div>
   <div style="flex:1"></div>
   <div class="center"><button class="reset" id="resetBtn">Reset Progress</button></div>
@@ -233,7 +249,7 @@ catch (e) { storageOK = false; }
 const state = loadState();
 
 function loadState() {
-  const fresh = { coins: 0, highest: 1, completed: {}, upg: {} };
+  const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal" };
   if (!storageOK) return fresh;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -244,6 +260,7 @@ function loadState() {
       highest: Math.max(1, s.highest | 0),
       completed: s.completed || {},
       upg: s.upg || {},
+      difficulty: typeof s.difficulty === "string" ? s.difficulty : "normal",
     };
   } catch (e) { return fresh; }
 }
@@ -271,6 +288,16 @@ const UPGRADES = [
   { id: "coinBonus", name: "Coin Bonus", icon: "\u{1F4B0}", blurb: "Balls drop more coins",
     max: 20, base: 60,  growth: 1.6,  fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
 ];
+
+/* Difficulty scales how fast balls fall. Bounce heights stay the same. */
+const DIFFICULTIES = [
+  { id: "easy",   name: "Easy",   mult: 0.5 },
+  { id: "normal", name: "Normal", mult: 0.7 },
+  { id: "hard",   name: "Hard",   mult: 1.0 },
+  { id: "insane", name: "Insane", mult: 1.3 },
+];
+const currentDifficulty = () =>
+  DIFFICULTIES.find(d => d.id === state.difficulty) || DIFFICULTIES[1];
 
 const upgLevel = id => state.upg[id] | 0;
 const upgCost = u => {
@@ -354,6 +381,16 @@ function renderMenu() {
   const lo = loadout();
   document.getElementById("menuStats").textContent =
     lo.damage + " dmg • " + lo.shotsPerSec.toFixed(1) + "/s • " + lo.streams + " streams";
+
+  const seg = document.getElementById("diffSeg");
+  seg.innerHTML = "";
+  for (const d of DIFFICULTIES) {
+    const b = document.createElement("button");
+    b.textContent = d.name;
+    b.className = d.id === currentDifficulty().id ? "sel" : "";
+    b.onclick = () => { state.difficulty = d.id; saveState(); renderMenu(); };
+    seg.appendChild(b);
+  }
 }
 
 function renderLevels() {
@@ -456,6 +493,7 @@ function newGame(levelNumber) {
     level: levelNumber,
     cfg,
     lo: loadout(),
+    gravity: GRAVITY * currentDifficulty().mult,
     phase: "ready",            // ready | running | won | lost
     paused: false,
     balls: [],
@@ -476,11 +514,13 @@ function newGame(levelNumber) {
   };
 }
 
-function bounceSpeed(tier) {
+function bounceSpeed(g, tier) {
   // Fixed bounce heights as fractions of the playfield, like the original.
+  // Deriving from the game's scaled gravity keeps heights identical
+  // across difficulties — only the fall speed changes.
   const frac = [0.30, 0.45, 0.60, 0.78][tier];
   const peak = frac * (H - GROUND_H - TIER_R[tier] - 60);
-  return Math.sqrt(2 * GRAVITY * Math.max(80, peak));
+  return Math.sqrt(2 * g.gravity * Math.max(80, peak));
 }
 
 function makeBall(g, tier, hp, x, y, vx, vy) {
@@ -657,14 +697,14 @@ function update(dt) {
 
   // Balls.
   for (const ball of g.balls) {
-    ball.vy -= GRAVITY * dt;
+    ball.vy -= g.gravity * dt;
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
     if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
     else if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx); }
     if (ball.y - ball.r <= GROUND_H && ball.vy < 0) {
       ball.y = GROUND_H + ball.r;
-      ball.vy = bounceSpeed(ball.tier);
+      ball.vy = bounceSpeed(g, ball.tier);
     }
   }
 

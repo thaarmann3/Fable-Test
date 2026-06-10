@@ -10,6 +10,7 @@ A fully offline, local Ball Blast clone for iPhone, built with SwiftUI + SpriteK
 - Balls bounce across the screen and **split in half** when destroyed, with the HP shown on each ball.
 - If a ball touches your cannon, the run is over — but you keep every coin you collected.
 - **Endless levels** with a rising difficulty curve — every level is procedurally tuned, and there is no cap. Every 10th level is a **boss level** (crown in the level grid) with huge multi-split balls. Clearing a level unlocks the next and pays a one-time reward (replays pay a smaller reward).
+- **Ball speed setting** on the main menu (Easy / Normal / Hard / Insane) scales how fast balls fall. Bounce heights stay the same — only gravity changes.
 
 ## Progression & upgrades
 

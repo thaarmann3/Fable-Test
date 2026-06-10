@@ -55,7 +55,8 @@ final class GameScene: SKScene {
 
     // MARK: - Tuning
 
-    private let gravity: CGFloat = 1500
+    private let gravity: CGFloat
+    private let bounceScale: CGFloat
     private let bulletSpeed: CGFloat = 1150
     private let groundHeight: CGFloat = 120
     private let cannonHitRadius: CGFloat = 26
@@ -89,10 +90,15 @@ final class GameScene: SKScene {
 
     // MARK: - Setup
 
-    init(size: CGSize, config: LevelConfig, loadout: PlayerLoadout) {
+    init(size: CGSize, config: LevelConfig, loadout: PlayerLoadout, gravityMultiplier: Double) {
         self.config = config
         self.loadout = loadout
         self.totalHP = config.totalHPPool
+        // Difficulty scales fall speed; scaling bounce velocity by the
+        // square root keeps bounce heights identical (peak = v² / 2g).
+        let multiplier = CGFloat(max(0.1, gravityMultiplier))
+        self.gravity = 1500 * multiplier
+        self.bounceScale = sqrt(multiplier)
         // Start "charged" so the first ball appears immediately.
         self.spawnAccumulator = config.spawnInterval
         super.init(size: size)
@@ -285,7 +291,7 @@ final class GameScene: SKScene {
 
             if y - ball.radius <= groundHeight && ball.vy < 0 {
                 y = groundHeight + ball.radius
-                ball.vy = Self.tierBounceSpeeds[ball.tier]
+                ball.vy = Self.tierBounceSpeeds[ball.tier] * bounceScale
             }
 
             ball.node.position = CGPoint(x: x, y: y)
