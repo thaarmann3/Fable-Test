@@ -6,10 +6,15 @@ struct LevelSelectView: View {
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
 
+    /// Levels are endless: always show a few locked rows past the frontier.
+    private var displayedCount: Int {
+        max(60, state.highestUnlockedLevel + 12)
+    }
+
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(1...LevelConfig.totalLevels, id: \.self) { number in
+                ForEach(1...displayedCount, id: \.self) { number in
                     cell(for: number)
                 }
             }

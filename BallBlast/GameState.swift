@@ -193,9 +193,7 @@ final class GameState: ObservableObject {
             let config = LevelConfig.level(number)
             reward = completedLevels.contains(number) ? config.replayReward : config.firstClearReward
             completedLevels.insert(number)
-            if number < LevelConfig.totalLevels {
-                highestUnlockedLevel = max(highestUnlockedLevel, number + 1)
-            }
+            highestUnlockedLevel = max(highestUnlockedLevel, number + 1)
         }
         coins += max(0, runCoins) + reward
         save()

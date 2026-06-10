@@ -3,6 +3,7 @@ import Foundation
 /// Procedurally generated difficulty curve for each level.
 /// Every level spawns `ballCount` big balls of `ballTier`; balls split in half
 /// (with half the HP) when destroyed until they reach tier 0 and pop.
+/// Levels are endless — the formulas below scale for any level number.
 struct LevelConfig {
     let number: Int
     let ballCount: Int
@@ -12,8 +13,6 @@ struct LevelConfig {
     let isBoss: Bool
     let firstClearReward: Int
     let replayReward: Int
-
-    static let totalLevels = 60
 
     /// Sum of HP across every ball and all of its split children,
     /// used for the level progress bar.
@@ -37,7 +36,7 @@ struct LevelConfig {
         if isBoss {
             // A few enormous balls that split three times.
             return LevelConfig(number: n,
-                               ballCount: 1 + n / 15,
+                               ballCount: min(1 + n / 15, 6),
                                ballTier: 3,
                                ballHP: baseHP * 4,
                                spawnInterval: 7.0,

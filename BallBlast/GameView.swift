@@ -218,15 +218,9 @@ struct GameView: View {
 
                 VStack(spacing: 12) {
                     if result.victory {
-                        if level < LevelConfig.totalLevels {
-                            BigButton(title: "Next Level", color: .yellow) {
-                                level += 1
-                                buildScene()
-                            }
-                        } else {
-                            Text("All \(LevelConfig.totalLevels) levels complete! 🏆")
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                        BigButton(title: "Next Level", color: .yellow) {
+                            level += 1
+                            buildScene()
                         }
                         BigButton(title: "Replay", color: .white.opacity(0.2)) { buildScene() }
                     } else {

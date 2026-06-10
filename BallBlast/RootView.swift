@@ -110,7 +110,7 @@ struct RootView: View {
     }
 
     private var nextLevel: Int {
-        min(state.highestUnlockedLevel, LevelConfig.totalLevels)
+        state.highestUnlockedLevel
     }
 
     private var statsLine: String {
