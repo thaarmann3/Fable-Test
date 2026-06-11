@@ -4,6 +4,14 @@ A fully offline, local Ball Blast clone for iPhone, built with SwiftUI + SpriteK
 
 > **No Mac handy?** There is also a complete single-file web version at [`docs/index.html`](docs/index.html) — this is now the most feature-complete version (coin pickups, power-ups, win streaks, boss attacks, full customization). Host it anywhere (GitHub Pages works: Settings → Pages → deploy from branch → `/docs`), open it in Safari on your iPhone, and use **Share → Add to Home Screen** to install it like an app.
 
+## Sharing with friends
+
+Just send them the GitHub Pages URL — they open it in Safari (or any browser) and can Add to Home Screen like you did. Each person's save lives in **their own browser's localStorage on their own device**, so:
+
+- Friends start fresh with their own progress; nobody shares or overwrites anyone's save.
+- When you push updates, everyone gets the new version on their next launch, and **nobody loses progress** — saves migrate automatically, exactly like yours does.
+- The only ways a friend loses their save: they clear website data for the domain, use Reset Progress, or the game moves to a different URL. As long as the Pages URL stays the same, updates are always safe.
+
 ## Getting updates on your home-screen app (web version)
 
 The web version has no service worker, so each launch loads the latest deployed page from the network:
