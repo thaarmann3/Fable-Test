@@ -1002,7 +1002,8 @@ function ballHue(g, ball) {
   return 210 * Math.pow(f, 0.6);
 }
 function ballColor(g, ball) {
-  return "hsl(" + Math.round(ballHue(g, ball)) + ", 65%, 52%)";
+  // High saturation keeps the orange/yellow band vivid instead of brown.
+  return "hsl(" + Math.round(ballHue(g, ball)) + ", 82%, 56%)";
 }
 /* Ball borders contrast with the level's background: light borders on
    dark maps, dark borders on light maps. Computed once per level. */
