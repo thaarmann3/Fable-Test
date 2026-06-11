@@ -348,7 +348,7 @@ function saveState() {
 
 /* ============================== Balance ============================== */
 
-const COINS_PER_HP = 0.7;
+const COINS_PER_HP = 0.8;
 const bulletDamage   = l => 1 + l;
 const shotsPerSecond = l => Math.min(3.0 + 0.35 * l, 12);
 const streamsFromRate = l => 1 + Math.floor(l / 8); // every 8 fire-rate tiers adds a stream
@@ -356,7 +356,7 @@ const coinMultiplier = l => 1.0 + 0.20 * l;
 
 /* Upgrades are infinite: no caps, and every tier N costs the same
    regardless of which upgrade it is. */
-const tierCost = l => Math.round(20 * Math.pow(1.28, l));
+const tierCost = l => Math.round(20 * Math.pow(1.26, l));
 
 /* Winning levels back to back multiplies the coins you earn:
    +20% per consecutive win, up to x3. A death resets it. */
