@@ -124,6 +124,11 @@
   #progressTrack { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.15); overflow: hidden; }
   #progressFill { height: 100%; width: 0%; border-radius: 999px; background: var(--yellow); transition: width 0.15s; }
   #hudCoins { font-size: 15px; }
+  #buffBar {
+    position: absolute; left: 0; right: 0; top: calc(var(--safe-top) + 64px);
+    text-align: center; font-size: 14px; font-weight: 800; color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7); pointer-events: none;
+  }
 
   .overlay {
     position: absolute; inset: 0; display: none; flex-direction: column;
@@ -271,6 +276,7 @@
     </div>
     <span class="pill" id="hudCoins"><span class="coin"></span><span id="gameCoins">0</span></span>
   </div>
+  <div id="buffBar"></div>
   <div id="startHint">
     <div class="big">TAP TO START</div>
     <div class="small" id="hintMap"></div>
@@ -960,6 +966,7 @@ function startGame(levelNumber) {
     (state.streak >= 3 ? " • BONUS CANNON ×" + missileMult(state.streak) : "");
   document.getElementById("progressFill").style.width = "0%";
   document.getElementById("gameCoins").textContent = shortNum(state.coins);
+  document.getElementById("buffBar").textContent = "";
   document.getElementById("startHint").classList.add("active");
   document.getElementById("pauseOverlay").classList.remove("active");
   document.getElementById("resultOverlay").classList.remove("active");
@@ -1736,24 +1743,15 @@ function draw() {
     }
   }
 
-  // Active buff readout.
-  let bx = 14;
-  ctx.font = "700 13px -apple-system, system-ui, sans-serif";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
+  // Active buff readout lives in the DOM, centered below the level bar.
   const buffLabels = [];
   if (g.shieldHP > 0) buffLabels.push(POWERUPS.shield.icon + " ×" + g.shieldHP);
   for (const k in g.buffs) {
     if (g.buffs[k] > 0) buffLabels.push(POWERUPS[k].icon + " " + Math.ceil(g.buffs[k]) + "s");
   }
-  for (const label of buffLabels) {
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(0,0,0,0.55)";
-    ctx.strokeText(label, bx, 92);
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillText(label, bx, 92);
-    bx += 64;
-  }
+  const buffText = buffLabels.join("   ");
+  const bb = document.getElementById("buffBar");
+  if (bb.textContent !== buffText) bb.textContent = buffText;
 
   // Particles & floating coin text.
   for (const p of g.particles) {
