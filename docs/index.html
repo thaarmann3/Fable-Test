@@ -215,6 +215,10 @@
     <div class="diffLabel">MYSTERY BALLS</div>
     <div class="seg" id="mysterySeg"></div>
   </div>
+  <div class="center" style="margin-top:12px">
+    <div class="diffLabel">CHALLENGE</div>
+    <div class="seg" id="challengeSeg"></div>
+  </div>
   <div style="flex:1"></div>
   <div class="center"><button class="reset" id="resetBtn">Reset Progress</button></div>
 </div>
@@ -298,7 +302,7 @@ const state = loadState();
 function loadState() {
   const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal",
                   equipped: { cannon: "classic", bullet: "standard", wheel: "standard" },
-                  owned: {}, streak: 0, mystery: "normal" };
+                  owned: {}, streak: 0, mystery: "normal", challenge: "hard" };
   if (!storageOK) return fresh;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -332,6 +336,7 @@ function loadState() {
       owned,
       streak: Math.max(0, s.streak | 0),
       mystery: typeof s.mystery === "string" ? s.mystery : "normal",
+      challenge: typeof s.challenge === "string" ? s.challenge : "hard",
     };
   } catch (e) { return fresh; }
 }
@@ -413,6 +418,17 @@ const MYSTERY_RATES = [
 ];
 const currentMystery = () =>
   MYSTERY_RATES.find(d => d.id === state.mystery) || MYSTERY_RATES[1];
+
+/* Challenge: how hard levels are. Random drop locations and a steeper
+   ball-HP curve above Classic. */
+const CHALLENGES = [
+  { id: "classic", name: "Classic", exp: 1.3,  randomDrop: false },
+  { id: "hard",    name: "Hard",    exp: 1.45, randomDrop: true },
+  { id: "brutal",  name: "Brutal",  exp: 1.6,  randomDrop: true },
+  { id: "insane",  name: "Insane",  exp: 1.75, randomDrop: true },
+];
+const currentChallenge = () =>
+  CHALLENGES.find(d => d.id === state.challenge) || CHALLENGES[1];
 
 /* ============================== Cosmetics ============================== */
 
@@ -526,7 +542,7 @@ function loadout() {
 function levelConfig(n) {
   n = Math.max(1, n | 0);
   const isBoss = n % 10 === 0;
-  const baseHP = Math.max(5, Math.floor(5.5 * Math.pow(n, 1.3)));
+  const baseHP = Math.max(5, Math.floor(5.5 * Math.pow(n, currentChallenge().exp)));
   if (isBoss) {
     return { number: n, count: Math.min(1 + Math.floor(n / 15), 6), tier: 3, hp: baseHP * 4,
              interval: 7.0, isBoss, firstReward: 80 + 45 * n, replayReward: 12 + 5 * n };
@@ -600,24 +616,20 @@ function renderMenu() {
   document.getElementById("menuStats").textContent =
     lo.damage + " dmg • " + lo.shotsPerSec.toFixed(1) + "/s • " + lo.streams + " streams";
 
-  const seg = document.getElementById("diffSeg");
-  seg.innerHTML = "";
-  for (const d of DIFFICULTIES) {
-    const b = document.createElement("button");
-    b.textContent = d.name;
-    b.className = d.id === currentDifficulty().id ? "sel" : "";
-    b.onclick = () => { state.difficulty = d.id; saveState(); renderMenu(); };
-    seg.appendChild(b);
-  }
+  renderSeg("diffSeg", DIFFICULTIES, currentDifficulty(), id => state.difficulty = id);
+  renderSeg("mysterySeg", MYSTERY_RATES, currentMystery(), id => state.mystery = id);
+  renderSeg("challengeSeg", CHALLENGES, currentChallenge(), id => state.challenge = id);
+}
 
-  const mseg = document.getElementById("mysterySeg");
-  mseg.innerHTML = "";
-  for (const d of MYSTERY_RATES) {
+function renderSeg(elID, options, current, set) {
+  const seg = document.getElementById(elID);
+  seg.innerHTML = "";
+  for (const d of options) {
     const b = document.createElement("button");
     b.textContent = d.name;
-    b.className = d.id === currentMystery().id ? "sel" : "";
-    b.onclick = () => { state.mystery = d.id; saveState(); renderMenu(); };
-    mseg.appendChild(b);
+    b.className = d.id === current.id ? "sel" : "";
+    b.onclick = () => { set(d.id); saveState(); renderMenu(); };
+    seg.appendChild(b);
   }
 }
 
@@ -818,6 +830,7 @@ function newGame(levelNumber) {
     lo: loadout(),
     gravity: GRAVITY * currentDifficulty().mult,
     theme,
+    challenge: currentChallenge(),
     ballBorder: themeBallBorder(theme),
     decos: makeDecos(THEMES.indexOf(theme)),
     cannon: equipped("cannon"),
@@ -1181,16 +1194,23 @@ function update(dt) {
       g.spawnAcc = 0;
       g.spawned++;
       const r = TIER_R[g.cfg.tier];
-      const x = g.fromLeft ? 50 : W - 50;
-      const vx = (90 + Math.random() * 50) * (g.fromLeft ? 1 : -1);
-      g.fromLeft = !g.fromLeft;
+      let x, vx;
+      if (g.challenge.randomDrop) {
+        x = 40 + Math.random() * (W - 80);
+        vx = (90 + Math.random() * 50) * (Math.random() < 0.5 ? -1 : 1);
+      } else {
+        x = g.fromLeft ? 50 : W - 50;
+        vx = (90 + Math.random() * 50) * (g.fromLeft ? 1 : -1);
+        g.fromLeft = !g.fromLeft;
+      }
       const nb = makeBall(g, g.cfg.tier, g.cfg.hp, x, H + r + 10, vx, 0);
       if (g.cfg.isBoss) { nb.isBoss = true; nb.atkT = 3 + Math.random() * 2; nb.tele = 0; }
       g.balls.push(nb);
       // Each spawned ball has a chance (menu setting) to bring a mystery ball.
       if (Math.random() < currentMystery().p) {
         const mtier = 1 + (Math.random() < 0.5 ? 1 : 0); // medium or big
-        const mb = makeBall(g, mtier, Math.max(3, g.cfg.hp >> 1), W - x, H + 60, -vx * 0.8, 0);
+        const mhp = Math.round(g.cfg.hp * (1.3 + Math.random() * 0.3));
+        const mb = makeBall(g, mtier, Math.max(3, mhp), W - x, H + 60, -vx * 0.8, 0);
         mb.mystery = true;
         mb.life = 14;
         g.balls.push(mb);
