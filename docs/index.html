@@ -931,8 +931,11 @@ function updateCoins(dt) {
   g.coins = keep;
 }
 
-const twinX = g => Math.min(Math.max(g.cannonX + (g.cannonX > W / 2 ? -100 : 100), 34), W - 34);
-const bonusX = g => Math.min(Math.max(g.cannonX - 80, 26), W - 26);
+/* Companion cannons shadow the main one with wheels almost touching
+   (twin rides right, mini bonus rides left) and teleport to the other
+   side when the cannon is pushed into a corner. */
+const twinX = g => g.cannonX + 54 <= W - 28 ? g.cannonX + 54 : g.cannonX - 54;
+const bonusX = g => g.cannonX - 45 >= 28 ? g.cannonX - 45 : g.cannonX + 45;
 
 function updatePowerups(dt) {
   const g = game;
