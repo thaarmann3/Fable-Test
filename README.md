@@ -14,9 +14,9 @@ Just send them the GitHub Pages URL — they open it in Safari (or any browser) 
 
 ## Getting updates on your home-screen app (web version)
 
-The web version has no service worker, so each launch loads the latest deployed page from the network:
+The game caches itself with a service worker on first visit, so it **works fully offline** after that. Each launch is served instantly from the cache while the latest version downloads in the background:
 
-- **Normal case:** after a new commit lands, GitHub Pages redeploys in about a minute. Force-quit the home-screen app (swipe it away in the app switcher) and reopen it to pick up the new version.
+- **Normal case:** after a new commit lands, GitHub Pages redeploys in about a minute. Force-quit the home-screen app and reopen it **twice** (the first relaunch downloads the update in the background, the second runs it).
 - **If it still looks stale:** open the same URL in Safari proper and pull down to refresh, then relaunch the home-screen app. As a last resort, remove the icon and re-add it via Share → Add to Home Screen.
 - **App icon:** iOS captures the icon once, at Add-to-Home-Screen time. If the icon changes (or you added the app before `icon.png` existed), remove the icon and re-add it to pick up the new artwork — your save is untouched by this.
 - **Your save is safe through all of this.** Progress lives in `localStorage`, keyed to the site's domain — updating the page, force-quitting, or re-adding the home screen icon does **not** touch it. New game versions migrate old saves automatically (e.g., retired upgrades convert to their modern equivalent). The only things that erase a save: the in-game *Reset Progress* button, clearing Safari website data for the domain, or hosting the game at a different URL (saves don't transfer between domains).
