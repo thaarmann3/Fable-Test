@@ -1228,6 +1228,8 @@ function update(dt) {
         const mb = makeBall(g, mtier, Math.max(3, mhp), W - x, H + 60, -vx * 0.8, 0);
         mb.mystery = true;
         mb.life = 14;
+        mb.gf = 0.55;                    // drifts down slower than normal balls
+        mb.seed = Math.random() * 6.28;  // crack pattern orientation
         g.balls.push(mb);
       }
     }
@@ -1272,14 +1274,16 @@ function update(dt) {
 
   // Balls.
   for (const ball of g.balls) {
-    ball.vy -= g.gravity * dt;
+    const gf = ball.gf || 1;
+    ball.vy -= g.gravity * gf * dt;
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
     if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
     else if (ball.x + ball.r > W) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx); }
     if (ball.y - ball.r <= GROUND_H && ball.vy < 0) {
       ball.y = GROUND_H + ball.r;
-      ball.vy = bounceSpeed(g, ball.tier);
+      // sqrt keeps bounce height the same under reduced gravity
+      ball.vy = bounceSpeed(g, ball.tier) * (gf === 1 ? 1 : Math.sqrt(gf));
     }
   }
 
@@ -1471,6 +1475,20 @@ function draw() {
     ctx.fillStyle = "rgba(255,255,255,0.35)";
     ctx.fill();
     ctx.restore();
+    // Mystery balls crack progressively as they take damage.
+    if (ball.mystery && ball.hp < ball.maxHP) {
+      const cracks = 1 + Math.floor((1 - ball.hp / ball.maxHP) * 4);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(20,10,40,0.6)";
+      for (let i = 0; i < cracks; i++) {
+        const a = ball.seed + i * 1.7;
+        ctx.beginPath();
+        ctx.moveTo(bx + Math.cos(a) * r * 0.15, by + Math.sin(a) * r * 0.15);
+        ctx.lineTo(bx + Math.cos(a + 0.25) * r * 0.5, by + Math.sin(a + 0.25) * r * 0.5);
+        ctx.lineTo(bx + Math.cos(a - 0.1) * r * 0.85, by + Math.sin(a - 0.1) * r * 0.85);
+        ctx.stroke();
+      }
+    }
     ctx.beginPath();
     ctx.arc(bx, by, r - 1, 0, Math.PI * 2);
     ctx.lineWidth = 3.5;
