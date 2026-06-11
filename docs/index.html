@@ -219,6 +219,10 @@
     <div class="diffLabel">CHALLENGE</div>
     <div class="seg" id="challengeSeg"></div>
   </div>
+  <div class="center" style="margin-top:12px">
+    <div class="diffLabel">SOUND</div>
+    <div class="seg" id="soundSeg"></div>
+  </div>
   <div style="flex:1"></div>
   <div class="center"><button class="reset" id="resetBtn">Reset Progress</button></div>
 </div>
@@ -302,7 +306,7 @@ const state = loadState();
 function loadState() {
   const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal",
                   equipped: { cannon: "classic", bullet: "standard", wheel: "standard", banner: "none" },
-                  owned: {}, streak: 0, mystery: "normal", challenge: "hard" };
+                  owned: {}, streak: 0, mystery: "normal", challenge: "hard", sound: "full" };
   if (!storageOK) return fresh;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -338,6 +342,7 @@ function loadState() {
       streak: Math.max(0, s.streak | 0),
       mystery: typeof s.mystery === "string" ? s.mystery : "normal",
       challenge: typeof s.challenge === "string" ? s.challenge : "hard",
+      sound: typeof s.sound === "string" ? s.sound : "full",
     };
   } catch (e) { return fresh; }
 }
@@ -607,6 +612,99 @@ function shortNum(v) {
   const m = v / 1e6; return m < 10 ? m.toFixed(1) + "M" : Math.round(m) + "M";
 }
 
+/* ============================== Audio ============================== */
+
+/* Everything is synthesized with WebAudio — no audio files, fully offline.
+   iOS requires the context to be created/resumed inside a user gesture,
+   which the Play button tap and in-game touches satisfy. */
+const SOUND_MODES = [
+  { id: "off",  name: "Off" },
+  { id: "sfx",  name: "SFX" },
+  { id: "full", name: "SFX + Music" },
+];
+const currentSound = () => SOUND_MODES.find(d => d.id === state.sound) || SOUND_MODES[2];
+
+let AC = null, sfxGain = null, musicGain = null;
+let musicTimer = null, musicNext = 0, musicStep = 0;
+
+function ensureAudio() {
+  if (currentSound().id === "off") return null;
+  if (!AC) {
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      sfxGain = AC.createGain(); sfxGain.gain.value = 0.5; sfxGain.connect(AC.destination);
+      musicGain = AC.createGain(); musicGain.gain.value = 0.15; musicGain.connect(AC.destination);
+    } catch (e) { return null; }
+  }
+  if (AC.state === "suspended") AC.resume();
+  return AC;
+}
+
+function tone(freq, at, dur, type, vol, slideTo, dest) {
+  const o = AC.createOscillator(), gn = AC.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, at);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(30, slideTo), at + dur);
+  gn.gain.setValueAtTime(vol, at);
+  gn.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  o.connect(gn); gn.connect(dest);
+  o.start(at); o.stop(at + dur + 0.03);
+}
+
+function blip(freq, dur, type, vol, slideTo) {
+  const ac = ensureAudio(); if (!ac) return;
+  tone(freq, ac.currentTime, dur, type, vol, slideTo, sfxGain);
+}
+
+const lastSfx = {};
+function throttled(key, ms) {
+  const now = performance.now();
+  if (lastSfx[key] && now - lastSfx[key] < ms) return false;
+  lastSfx[key] = now;
+  return true;
+}
+
+const sfx = {
+  shoot() { if (throttled("shoot", 80)) blip(660, 0.05, "square", 0.045, 220); },
+  pop(tier) { if (throttled("pop", 45)) blip(300 - tier * 50, 0.16, "triangle", 0.22, 70); },
+  coin() { if (throttled("coin", 70)) blip(1568, 0.08, "sine", 0.1, 2093); },
+  power() { [523, 659, 784].forEach((f, i) => setTimeout(() => blip(f, 0.12, "sine", 0.15), i * 70)); },
+  shield() { blip(160, 0.2, "sawtooth", 0.18, 70); },
+  win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.16, "sine", 0.18), i * 110)); },
+  lose() { blip(280, 0.6, "sawtooth", 0.25, 60); },
+};
+
+/* Generative loop: Am-F-C-G bass with a pentatonic arpeggio on top. */
+const MUSIC_ROOTS = [220, 174.61, 130.81, 196];
+const MUSIC_ARP = [0, 3, 7, 12, 10, 7, 5, 3];
+
+function scheduleMusicStep(step, at) {
+  const root = MUSIC_ROOTS[Math.floor(step / 8) % 4];
+  if (step % 8 === 0) tone(root / 2, at, 0.9, "triangle", 0.5, 0, musicGain);
+  if (step % 2 === 0) {
+    const f = root * Math.pow(2, MUSIC_ARP[step % 8] / 12) * 2;
+    tone(f, at, 0.2, "sine", 0.22, 0, musicGain);
+  }
+}
+
+function startMusic() {
+  if (musicTimer || currentSound().id !== "full") return;
+  const ac = ensureAudio(); if (!ac) return;
+  musicNext = ac.currentTime + 0.05;
+  musicStep = 0;
+  musicTimer = setInterval(() => {
+    while (musicNext < AC.currentTime + 0.35) {
+      scheduleMusicStep(musicStep, musicNext);
+      musicNext += 0.24;
+      musicStep++;
+    }
+  }, 130);
+}
+
+function stopMusic() {
+  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}
+
 /* ============================== Navigation ============================== */
 
 const screens = {
@@ -655,6 +753,10 @@ function renderMenu() {
   renderSeg("diffSeg", DIFFICULTIES, currentDifficulty(), id => state.difficulty = id);
   renderSeg("mysterySeg", MYSTERY_RATES, currentMystery(), id => state.mystery = id);
   renderSeg("challengeSeg", CHALLENGES, currentChallenge(), id => state.challenge = id);
+  renderSeg("soundSeg", SOUND_MODES, currentSound(), id => {
+    state.sound = id;
+    if (id !== "full") stopMusic();
+  });
 }
 
 function renderSeg(elID, options, current, set) {
@@ -862,6 +964,7 @@ function startGame(levelNumber) {
   document.getElementById("pauseOverlay").classList.remove("active");
   document.getElementById("resultOverlay").classList.remove("active");
   if (!rafId) rafId = requestAnimationFrame(frame);
+  startMusic();
 }
 
 function newGame(levelNumber) {
@@ -945,6 +1048,7 @@ function spawnCoinDrops(g, x, y, value) {
 
 function collectCoin(g, c, floater) {
   g.runCoins += c.value;
+  if (floater) sfx.coin();
   if (floater && c.tier >= 3) {
     g.floaters.push({ x: c.x, y: c.y, text: "+" + shortNum(c.value), t: 0.5 });
   }
@@ -1005,6 +1109,7 @@ function updatePowerups(dt) {
       if (p.kind === "shield") g.shieldHP = POWERUPS.shield.power();
       else g.buffs[p.kind] = POWERUPS[p.kind].dur();
       g.floaters.push({ x: p.x, y: p.y + 20, text: POWERUPS[p.kind].name + "!", t: 0.8 });
+      sfx.power();
       if (navigator.vibrate) navigator.vibrate(15);
       continue;
     }
@@ -1082,12 +1187,14 @@ window.addEventListener("blur", () => { if (game) game.firing = false; });
 document.getElementById("pauseBtn").onclick = () => {
   if (game && game.phase === "running") {
     game.paused = true;
+    stopMusic();
     document.getElementById("pauseOverlay").classList.add("active");
   }
 };
 document.getElementById("resumeBtn").onclick = () => {
   game.paused = false;
   game.lastT = 0;
+  startMusic();
   document.getElementById("pauseOverlay").classList.remove("active");
 };
 document.getElementById("restartBtn").onclick = () => { bankRunCoins(); startGame(game.level); };
@@ -1096,6 +1203,7 @@ document.getElementById("quitBtn").onclick = () => { bankRunCoins(); leaveGame()
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && game && game.phase === "running" && !game.paused) {
     game.paused = true;
+    stopMusic();
     document.getElementById("pauseOverlay").classList.add("active");
   }
 });
@@ -1108,6 +1216,7 @@ function bankRunCoins() {
 }
 
 function leaveGame() {
+  stopMusic();
   game = null;
   if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
   show("menu");
@@ -1312,6 +1421,7 @@ function update(dt) {
         }
       }
     }
+    if (xs.length) sfx.shoot();
   }
 
   // Bullets.
@@ -1403,6 +1513,7 @@ function update(dt) {
     if (g.buffs.coinx > 0) value = Math.round(value * (2 + 0.03 * upgLevel("coinFrenzy")));
     spawnCoinDrops(g, ball.x, ball.y, value);
     burst(ball.x, ball.y, ballColor(g, ball), ball.r);
+    sfx.pop(ball.tier);
     if (ball.tier > 0) {
       const childHP = Math.max(1, ball.maxHP >> 1);
       const speed = 80 + Math.random() * 50;
@@ -1431,12 +1542,15 @@ function update(dt) {
         ball.vy = bounceSpeed(g, ball.tier);
         ball.vx = (ball.x >= g.cannonX ? 1 : -1) * Math.max(80, Math.abs(ball.vx));
         burst(g.cannonX, cy + 20, "#5db5ff", 18);
+        sfx.shield();
         if (navigator.vibrate) navigator.vibrate(20);
         continue;
       }
       g.phase = "lost";
       g.endTimer = 0.8;
       burst(g.cannonX, cy, g.cannon.body, 36);
+      sfx.lose();
+      stopMusic();
       if (navigator.vibrate) navigator.vibrate([30, 40, 60]);
       return;
     }
@@ -1448,6 +1562,7 @@ function update(dt) {
     g.coins = [];
     g.phase = "won";
     g.endTimer = 0.6;
+    sfx.win();
   }
 }
 
