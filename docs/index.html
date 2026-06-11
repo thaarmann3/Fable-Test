@@ -380,26 +380,31 @@ const UPGRADES = [
     blurb: "Balls drop more coins",
     fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
   { id: "shieldUp", name: "Shield", icon: "\u{1F6E1}",
-    blurb: "Invincibility power-up lasts longer",
-    fx: l => (4 + 0.09 * l).toFixed(1) + "s" },
+    blurb: "Shield blocks more hits",
+    fx: l => (2 + Math.floor(l / 10)) + " hits" },
   { id: "twinUp", name: "Twin Cannon", icon: "\u{2795}",
-    blurb: "Twin cannon power-up lasts longer",
-    fx: l => (5 + 0.12 * l).toFixed(1) + "s" },
+    blurb: "Twin cannon lasts longer and hits harder",
+    fx: l => (5 + 0.08 * l).toFixed(1) + "s • ×" + (1 + 0.02 * l).toFixed(2) + " dmg" },
   { id: "spreadUp", name: "Spread Shot", icon: "\u{1F3AF}",
-    blurb: "Spread power-up fires more angled bullets",
-    fx: l => (1 + Math.floor(l / 16)) + " pairs" },
+    blurb: "Spread shot lasts longer with more bullets",
+    fx: l => (6 + 0.06 * l).toFixed(1) + "s • " + (1 + Math.floor(l / 16)) + " pairs" },
   { id: "coinFrenzy", name: "Coin Frenzy", icon: "\u{1F4B8}",
-    blurb: "Coin Frenzy power-up multiplies coins more",
-    fx: l => "×" + (2 + 0.03 * l).toFixed(2) },
+    blurb: "Coin Frenzy lasts longer and pays more",
+    fx: l => (6 + 0.06 * l).toFixed(1) + "s • ×" + (2 + 0.03 * l).toFixed(2) },
 ];
 
-/* Power-ups dropped by mystery "?" balls. Timed buffs; upgrades above
-   improve their duration or power. */
+/* Power-ups dropped by mystery "?" balls. Shield absorbs a number of
+   hits; the rest are timed buffs. Upgrades improve duration AND power. */
 const POWERUPS = {
-  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff", dur: () => 4 + 0.09 * upgLevel("shieldUp") },
-  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d", dur: () => 5 + 0.12 * upgLevel("twinUp") },
-  spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855", dur: () => 6 },
-  coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0", dur: () => 6 },
+  shield: { name: "Shield",      icon: "\u{1F6E1}", color: "#5db5ff",
+            power: () => 2 + Math.floor(upgLevel("shieldUp") / 10) },
+  twin:   { name: "Twin Cannon", icon: "\u{2795}",  color: "#ffd84d",
+            dur: () => 5 + 0.08 * upgLevel("twinUp"),
+            dmg: () => 1 + 0.02 * upgLevel("twinUp") },
+  spread: { name: "Spread Shot", icon: "\u{1F3AF}", color: "#ff8855",
+            dur: () => 6 + 0.06 * upgLevel("spreadUp") },
+  coinx:  { name: "Coin Frenzy", icon: "\u{1F4B8}", color: "#7ce8a0",
+            dur: () => 6 + 0.06 * upgLevel("coinFrenzy") },
 };
 
 /* Difficulty scales how fast balls fall. Bounce heights stay the same. */
@@ -841,7 +846,8 @@ function newGame(levelNumber) {
     bulletStyle: equipped("bullet"),
     coins: [],
     powerups: [],
-    buffs: { shield: 0, twin: 0, spread: 0, coinx: 0 },
+    buffs: { twin: 0, spread: 0, coinx: 0 },
+    shieldHP: 0,
     // Win 3+ levels in a row: a bonus mini-cannon fires homing missiles,
     // faster with longer streaks.
     bonus: state.streak >= 3,
@@ -960,7 +966,8 @@ function updatePowerups(dt) {
     }
     const dx = p.x - cx, dy = p.y - cy;
     if (dx * dx + dy * dy < 4900) {
-      g.buffs[p.kind] = POWERUPS[p.kind].dur();
+      if (p.kind === "shield") g.shieldHP = POWERUPS.shield.power();
+      else g.buffs[p.kind] = POWERUPS[p.kind].dur();
       g.floaters.push({ x: p.x, y: p.y + 20, text: POWERUPS[p.kind].name + "!", t: 0.8 });
       if (navigator.vibrate) navigator.vibrate(15);
       continue;
@@ -1241,16 +1248,19 @@ function update(dt) {
     const xs = [];
     if (g.firing) xs.push(g.cannonX);
     if (g.buffs.twin > 0) xs.push(twinX(g));
+    const twinDmg = Math.max(1, Math.round(g.lo.bulletDmg * POWERUPS.twin.dmg()));
     for (const cx of xs) {
+      const isMain = cx === g.cannonX && g.firing;
+      const dmg = isMain ? g.lo.bulletDmg : twinDmg;
       const n = g.lo.streams, spacing = 13;
       const startX = cx - spacing * (n - 1) / 2;
-      for (let i = 0; i < n; i++) g.bullets.push({ x: startX + i * spacing, y: GROUND_H + 52, vx: 0 });
+      for (let i = 0; i < n; i++) g.bullets.push({ x: startX + i * spacing, y: GROUND_H + 52, vx: 0, dmg });
       // Spread shot only fans out from the main cannon.
-      if (g.buffs.spread > 0 && cx === g.cannonX) {
+      if (g.buffs.spread > 0 && isMain) {
         const pairs = 1 + Math.floor(upgLevel("spreadUp") / 16);
         for (let p = 1; p <= pairs; p++) {
-          g.bullets.push({ x: cx, y: GROUND_H + 52, vx: 110 * p });
-          g.bullets.push({ x: cx, y: GROUND_H + 52, vx: -110 * p });
+          g.bullets.push({ x: cx, y: GROUND_H + 52, vx: 110 * p, dmg });
+          g.bullets.push({ x: cx, y: GROUND_H + 52, vx: -110 * p, dmg });
         }
       }
     }
@@ -1280,7 +1290,7 @@ function update(dt) {
     for (const ball of g.balls) {
       if (ball.hp <= 0) continue;
       const dx = b.x - ball.x, dy = b.y - ball.y, reach = ball.r + 8;
-      if (dx * dx + dy * dy <= reach * reach) { ball.hp -= g.lo.bulletDmg; hit = true; break; }
+      if (dx * dx + dy * dy <= reach * reach) { ball.hp -= b.dmg; hit = true; break; }
     }
     if (!hit) keep.push(b);
   }
@@ -1365,10 +1375,13 @@ function update(dt) {
   for (const ball of g.balls) {
     const dx = ball.x - g.cannonX, dy = ball.y - cy, reach = ball.r + CANNON_HIT_R;
     if (dx * dx + dy * dy < reach * reach) {
-      if (g.buffs.shield > 0) {
-        // Invincible: knock the ball away instead.
+      if (g.shieldHP > 0) {
+        // Shield absorbs the hit and knocks the ball away.
+        g.shieldHP--;
         ball.vy = bounceSpeed(g, ball.tier);
         ball.vx = (ball.x >= g.cannonX ? 1 : -1) * Math.max(80, Math.abs(ball.vx));
+        burst(g.cannonX, cy + 20, "#5db5ff", 18);
+        if (navigator.vibrate) navigator.vibrate(20);
         continue;
       }
       g.phase = "lost";
@@ -1535,12 +1548,11 @@ function draw() {
   if (g.phase !== "lost") {
     drawCannon(g.cannonX, sy(GROUND_H), g.cannon, g.wheel);
     if (g.buffs.twin > 0) drawCannon(twinX(g), sy(GROUND_H), g.cannon, g.wheel);
-    if (g.buffs.shield > 0) {
+    if (g.shieldHP > 0) {
       ctx.beginPath();
       ctx.arc(g.cannonX, sy(GROUND_H + 22), 36, 0, Math.PI * 2);
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "rgba(120,200,255," +
-        (g.buffs.shield < 1.5 && (((g.buffs.shield * 8) | 0) % 2 === 0) ? 0.2 : 0.8) + ")";
+      ctx.lineWidth = 2 + g.shieldHP; // thicker ring = more hits left
+      ctx.strokeStyle = "rgba(120,200,255,0.8)";
       ctx.stroke();
     }
   }
@@ -1550,9 +1562,12 @@ function draw() {
   ctx.font = "700 13px -apple-system, system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
+  const buffLabels = [];
+  if (g.shieldHP > 0) buffLabels.push(POWERUPS.shield.icon + " ×" + g.shieldHP);
   for (const k in g.buffs) {
-    if (g.buffs[k] <= 0) continue;
-    const label = POWERUPS[k].icon + " " + Math.ceil(g.buffs[k]) + "s";
+    if (g.buffs[k] > 0) buffLabels.push(POWERUPS[k].icon + " " + Math.ceil(g.buffs[k]) + "s");
+  }
+  for (const label of buffLabels) {
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(0,0,0,0.55)";
     ctx.strokeText(label, bx, 92);
