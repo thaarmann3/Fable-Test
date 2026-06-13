@@ -360,10 +360,10 @@ function saveState() {
 
 /* ============================== Balance ============================== */
 
-const COINS_PER_HP = 0.6;
-// Power and money scale exponentially per upgrade tier, but gently, so
-// the curve trends up without trivializing levels.
-const bulletDamage   = l => Math.pow(1.11, l);          // ×1.11 damage per tier
+const COINS_PER_HP = 0.8;
+// Damage and fire rate scale linearly; only coin gain scales
+// exponentially, per Coin Bonus tier.
+const bulletDamage   = l => 1 + l;
 const shotsPerSecond = l => Math.min(3.0 + 0.35 * l, 12);
 const streamsFromRate = l => 1 + Math.floor(l / 8); // every 8 fire-rate tiers adds a stream
 const coinMultiplier = l => Math.pow(1.08, l);          // ×1.08 coins per tier
@@ -389,7 +389,7 @@ const missileMult = s => Math.min(5 + Math.max(0, s - 3), 15);
 const UPGRADES = [
   { id: "firepower", name: "Firepower", icon: "\u{1F525}",
     blurb: "Each bullet deals more damage",
-    fx: l => fmtMul(bulletDamage(l)) + " dmg" },
+    fx: l => bulletDamage(l) + " dmg" },
   { id: "fireRate",  name: "Fire Rate", icon: "⚡",
     blurb: "Shoot faster — every 8 tiers adds a bullet stream (max 6 drawn, then bonus damage)",
     fx: l => {
@@ -585,7 +585,7 @@ function loadout() {
   const damage = bulletDamage(upgLevel("firepower"));
   return {
     damage,
-    bulletDmg: Math.max(1, damage * streams / visible),
+    bulletDmg: Math.max(1, Math.round(damage * streams / visible)),
     shotsPerSec: shotsPerSecond(fr),
     streams: visible,
     coinMult: coinMultiplier(upgLevel("coinBonus")),
@@ -597,7 +597,7 @@ function loadout() {
 function levelConfig(n) {
   n = Math.max(1, n | 0);
   const isBoss = n % 10 === 0;
-  const baseHP = Math.max(5, Math.floor(7.5 * Math.pow(n, currentChallenge().exp)));
+  const baseHP = Math.max(5, Math.floor(5.5 * Math.pow(n, currentChallenge().exp)));
   if (isBoss) {
     // One mega ball that cascades into normal balls as it splits.
     return { number: n, count: 1, tier: 3, hp: baseHP * (8 + Math.floor(n / 8)),
@@ -1423,7 +1423,7 @@ function update(dt) {
     const xs = [];
     if (g.firing) xs.push(g.cannonX);
     if (g.buffs.twin > 0) xs.push(twinX(g));
-    const twinDmg = Math.max(1, g.lo.bulletDmg * POWERUPS.twin.dmg());
+    const twinDmg = Math.max(1, Math.round(g.lo.bulletDmg * POWERUPS.twin.dmg()));
     for (const cx of xs) {
       const isMain = cx === g.cannonX && g.firing;
       const dmg = isMain ? g.lo.bulletDmg : twinDmg;
