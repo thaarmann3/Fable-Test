@@ -361,12 +361,12 @@ function saveState() {
 /* ============================== Balance ============================== */
 
 const COINS_PER_HP = 0.8;
-// Damage and fire rate scale linearly; only coin gain scales
-// exponentially, per Coin Bonus tier.
-const bulletDamage   = l => 1 + l;
+// Damage accelerates (a quadratic term makes later tiers count for more)
+// so it keeps pace with the ball-HP curve; coin gain scales exponentially.
+const bulletDamage   = l => Math.round(1 + l + 0.05 * l * l);
 const shotsPerSecond = l => Math.min(3.0 + 0.35 * l, 12);
 const streamsFromRate = l => 1 + Math.floor(l / 8); // every 8 fire-rate tiers adds a stream
-const coinMultiplier = l => Math.pow(1.08, l);          // ×1.08 coins per tier
+const coinMultiplier = l => Math.pow(1.10, l);          // ×1.10 coins per tier
 
 /* Compact multiplier/damage label: decimals when small, short-form when big. */
 function fmtMul(v) {
