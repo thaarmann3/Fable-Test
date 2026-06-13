@@ -361,10 +361,19 @@ function saveState() {
 /* ============================== Balance ============================== */
 
 const COINS_PER_HP = 0.8;
-const bulletDamage   = l => 1 + l;
+// Power and money both scale exponentially per upgrade tier, so they can
+// keep pace with the exponential ball-HP curve at deep levels.
+const bulletDamage   = l => Math.pow(1.16, l);          // ×1.16 damage per tier
 const shotsPerSecond = l => Math.min(3.0 + 0.35 * l, 12);
 const streamsFromRate = l => 1 + Math.floor(l / 8); // every 8 fire-rate tiers adds a stream
-const coinMultiplier = l => 1.0 + 0.20 * l;
+const coinMultiplier = l => Math.pow(1.13, l);          // ×1.13 coins per tier
+
+/* Compact multiplier/damage label: decimals when small, short-form when big. */
+function fmtMul(v) {
+  if (v < 10) return v.toFixed(2);
+  if (v < 1000) return Math.round(v).toString();
+  return shortNum(Math.round(v));
+}
 
 /* Upgrades are infinite: no caps, and every tier N costs the same
    regardless of which upgrade it is. */
@@ -380,7 +389,7 @@ const missileMult = s => Math.min(5 + Math.max(0, s - 3), 15);
 const UPGRADES = [
   { id: "firepower", name: "Firepower", icon: "\u{1F525}",
     blurb: "Each bullet deals more damage",
-    fx: l => bulletDamage(l) + " dmg" },
+    fx: l => fmtMul(bulletDamage(l)) + " dmg" },
   { id: "fireRate",  name: "Fire Rate", icon: "⚡",
     blurb: "Shoot faster — every 8 tiers adds a bullet stream (max 6 drawn, then bonus damage)",
     fx: l => {
@@ -390,7 +399,7 @@ const UPGRADES = [
     } },
   { id: "coinBonus", name: "Coin Bonus", icon: "\u{1F4B0}",
     blurb: "Balls drop more coins",
-    fx: l => "+" + Math.round((coinMultiplier(l) - 1) * 100) + "% coins" },
+    fx: l => "×" + fmtMul(coinMultiplier(l)) + " coins" },
   { id: "shieldUp", name: "Shield", icon: "\u{1F6E1}",
     blurb: "Shield blocks more hits",
     fx: l => (2 + Math.floor(l / 10)) + " hits" },
@@ -576,7 +585,7 @@ function loadout() {
   const damage = bulletDamage(upgLevel("firepower"));
   return {
     damage,
-    bulletDmg: Math.max(1, Math.round(damage * streams / visible)),
+    bulletDmg: Math.max(1, damage * streams / visible),
     shotsPerSec: shotsPerSecond(fr),
     streams: visible,
     coinMult: coinMultiplier(upgLevel("coinBonus")),
@@ -613,9 +622,11 @@ function totalHPPool(cfg) {
 }
 
 function shortNum(v) {
-  if (v < 1000) return "" + v;
-  if (v < 1e6) { const k = v / 1000; return k < 10 ? k.toFixed(1) + "K" : Math.round(k) + "K"; }
-  const m = v / 1e6; return m < 10 ? m.toFixed(1) + "M" : Math.round(m) + "M";
+  if (v < 1000) return "" + Math.round(v);
+  const units = ["K", "M", "B", "T", "Qa", "Qi"];
+  let u = -1, n = v;
+  while (n >= 1000 && u < units.length - 1) { n /= 1000; u++; }
+  return (n < 10 ? n.toFixed(1) : Math.round(n)) + units[u];
 }
 
 /* ============================== Audio ============================== */
@@ -1412,7 +1423,7 @@ function update(dt) {
     const xs = [];
     if (g.firing) xs.push(g.cannonX);
     if (g.buffs.twin > 0) xs.push(twinX(g));
-    const twinDmg = Math.max(1, Math.round(g.lo.bulletDmg * POWERUPS.twin.dmg()));
+    const twinDmg = Math.max(1, g.lo.bulletDmg * POWERUPS.twin.dmg());
     for (const cx of xs) {
       const isMain = cx === g.cannonX && g.firing;
       const dmg = isMain ? g.lo.bulletDmg : twinDmg;
@@ -1666,7 +1677,7 @@ function draw() {
     ctx.font = "900 " + Math.max(12, ball.r * 0.55) + "px -apple-system, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(ball.mystery ? "?" : shortNum(Math.max(0, ball.hp)), ball.x, sy(ball.y));
+    ctx.fillText(ball.mystery ? "?" : shortNum(Math.max(0, Math.round(ball.hp))), ball.x, sy(ball.y));
     if (ball.isBoss) {
       ctx.font = "900 " + Math.max(14, ball.r * 0.45) + "px sans-serif";
       ctx.fillText("\u{1F451}", ball.x, sy(ball.y + ball.r + 14));
