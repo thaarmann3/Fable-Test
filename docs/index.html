@@ -388,7 +388,7 @@ function fmtMul(v) {
    exponent just under HP's) so that beating level N always funds ~2-3
    tier-N upgrades from base coins alone — Coin Bonus, streaks and boss
    levels make it more. This replaces the old exponential wall. */
-const tierCost = l => Math.round(20 + 100 * Math.pow(l, 1.43));
+const tierCost = l => Math.round(30 + 140 * Math.pow(l, 2.0));
 
 /* Winning levels back to back multiplies the coins you earn:
    +20% per consecutive win, up to x3. A death resets it. */
@@ -462,10 +462,10 @@ const currentMystery = () =>
 /* Challenge: how hard levels are. Random drop locations and a steeper
    ball-HP curve above Classic. */
 const CHALLENGES = [
-  { id: "classic", name: "Classic", exp: 1.3,  randomDrop: false },
-  { id: "hard",    name: "Hard",    exp: 1.45, randomDrop: true },
-  { id: "brutal",  name: "Brutal",  exp: 1.6,  randomDrop: true },
-  { id: "insane",  name: "Insane",  exp: 1.75, randomDrop: true },
+  { id: "classic", name: "Classic", exp: 1.9,  randomDrop: false },
+  { id: "hard",    name: "Hard",    exp: 2.05, randomDrop: true },
+  { id: "brutal",  name: "Brutal",  exp: 2.2,  randomDrop: true },
+  { id: "insane",  name: "Insane",  exp: 2.35, randomDrop: true },
 ];
 const currentChallenge = () =>
   CHALLENGES.find(d => d.id === state.challenge) || CHALLENGES[1];
