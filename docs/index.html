@@ -362,11 +362,12 @@ function saveState() {
 
 const COINS_PER_HP = 0.8;
 // Damage accelerates (a quadratic term makes later tiers count for more)
-// so it keeps pace with the ball-HP curve; coin gain scales exponentially.
+// so it keeps pace with the ball-HP curve.
 const bulletDamage   = l => Math.round(1 + l + 0.05 * l * l);
 const shotsPerSecond = l => Math.min(3.0 + 0.35 * l, 12);
 const streamsFromRate = l => 1 + Math.floor(l / 8); // every 8 fire-rate tiers adds a stream
-const coinMultiplier = l => Math.pow(1.10, l);          // ×1.10 coins per tier
+// Coin Bonus is linear so it can't outrun the polynomial cost curve below.
+const coinMultiplier = l => 1 + 0.1 * l;
 
 /* Compact multiplier/damage label: decimals when small, short-form when big. */
 function fmtMul(v) {
@@ -376,9 +377,11 @@ function fmtMul(v) {
 }
 
 /* Upgrades are infinite, and every tier N costs the same regardless of
-   which upgrade it is. Costs scale moderately (×1.17/tier) — enough to
-   keep choices meaningful without the old cost wall. */
-const tierCost = l => Math.round(20 * Math.pow(1.17, l));
+   which upgrade it is. Cost tracks the ball-HP curve (polynomial,
+   exponent just under HP's) so that beating level N always funds ~2-3
+   tier-N upgrades from base coins alone — Coin Bonus, streaks and boss
+   levels make it more. This replaces the old exponential wall. */
+const tierCost = l => Math.round(20 + 100 * Math.pow(l, 1.43));
 
 /* Winning levels back to back multiplies the coins you earn:
    +20% per consecutive win, up to x3. A death resets it. */
