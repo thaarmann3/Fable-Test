@@ -312,7 +312,8 @@ const state = loadState();
 function loadState() {
   const fresh = { coins: 0, highest: 1, completed: {}, upg: {}, difficulty: "normal",
                   equipped: { cannon: "classic", bullet: "standard", wheel: "standard", banner: "none" },
-                  owned: {}, streak: 0, mystery: "normal", challenge: "hard", sound: "full" };
+                  owned: {}, streak: 0, mystery: "normal", challenge: "hard", sound: "full",
+                  clamp180: true };
   if (!storageOK) return fresh;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -324,6 +325,11 @@ function loadState() {
     if (upg.multiShot) {
       upg.fireRate = (upg.fireRate | 0) + 8 * upg.multiShot;
       delete upg.multiShot;
+    }
+    // One-time: clamp over-leveled upgrade tiers down to 180. Guarded by a
+    // flag so it runs exactly once and won't re-cap later progress.
+    if (!s.clamp180) {
+      for (const k in upg) if (upg[k] > 180) upg[k] = 180;
     }
     // Migrate older saves that used a single "skin" field.
     const eq = s.equipped || {};
@@ -349,6 +355,7 @@ function loadState() {
       mystery: typeof s.mystery === "string" ? s.mystery : "normal",
       challenge: typeof s.challenge === "string" ? s.challenge : "hard",
       sound: typeof s.sound === "string" ? s.sound : "full",
+      clamp180: true,
     };
   } catch (e) { return fresh; }
 }
