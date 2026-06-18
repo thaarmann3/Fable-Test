@@ -998,6 +998,18 @@ function startGame(levelNumber) {
   startMusic();
 }
 
+// Most original-ball groups (a ball plus all its split children) allowed on
+// screen at once. New balls hold until a group is fully cleared.
+const MAX_LINEAGES = 3;
+
+// How many distinct original-ball groups are currently alive (mystery balls,
+// which have no lineage, don't count).
+function activeLineages(g) {
+  const seen = new Set();
+  for (const b of g.balls) if (b.lineage) seen.add(b.lineage);
+  return seen.size;
+}
+
 function newGame(levelNumber) {
   const cfg = levelConfig(levelNumber);
   const theme = themeFor(levelNumber);
@@ -1037,6 +1049,7 @@ function newGame(levelNumber) {
     fireAcc: 0,
     spawnAcc: cfg.interval,    // first ball appears immediately
     spawned: 0,
+    lineageSeq: 0,             // id generator for ball lineages (cap concurrent)
     fromLeft: true,
     runCoins: 0,
     destroyedHP: 0,
@@ -1388,10 +1401,12 @@ function update(dt) {
     }
   }
 
-  // Spawn waves.
+  // Spawn waves. A new ball only drops once the timer is up AND fewer than
+  // MAX_LINEAGES original-ball groups are still alive — so new balls wait for
+  // old ones to be broken, but up to a few are in play at once.
   if (g.spawned < g.cfg.count) {
-    g.spawnAcc += dt;
-    if (g.spawnAcc >= g.cfg.interval) {
+    g.spawnAcc = Math.min(g.spawnAcc + dt, g.cfg.interval);
+    if (g.spawnAcc >= g.cfg.interval && activeLineages(g) < MAX_LINEAGES) {
       g.spawnAcc = 0;
       g.spawned++;
       const r = TIER_R[g.cfg.tier];
@@ -1405,6 +1420,7 @@ function update(dt) {
         g.fromLeft = !g.fromLeft;
       }
       const nb = makeBall(g, g.cfg.tier, g.cfg.hp, x, H + r + 10, vx, 0);
+      nb.lineage = ++g.lineageSeq;
       if (g.cfg.isBoss) { nb.isBoss = true; nb.r = 84; nb.atkT = 3 + Math.random() * 2; nb.tele = 0; }
       g.balls.push(nb);
       // Each spawned ball has a chance (menu setting) to bring a mystery ball.
@@ -1549,7 +1565,9 @@ function update(dt) {
       const childHP = Math.max(1, ball.maxHP >> 1);
       const speed = 80 + Math.random() * 50;
       for (const dir of [-1, 1]) {
-        children.push(makeBall(g, ball.tier - 1, childHP, ball.x, ball.y, speed * dir, 420));
+        const child = makeBall(g, ball.tier - 1, childHP, ball.x, ball.y, speed * dir, 420);
+        child.lineage = ball.lineage;   // split children share the original's lineage
+        children.push(child);
       }
     }
   }
