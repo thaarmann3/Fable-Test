@@ -1848,9 +1848,19 @@ function roundRect(x, y, w, h, r) {
 
 /* ============================== Boot ============================== */
 
-// Offline support: cache the game on first visit, refresh in background.
+// Offline support. The worker is network-first for the page, so an online
+// launch runs the latest version; when a new worker takes over, reload once
+// so the fresh code applies immediately (guarded so first install doesn't loop).
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
+  if (navigator.serviceWorker.controller) {
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloaded) return;
+      reloaded = true;
+      location.reload();
+    });
+  }
 }
 
 renderMenu();
