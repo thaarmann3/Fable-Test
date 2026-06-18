@@ -375,9 +375,10 @@ function fmtMul(v) {
   return shortNum(Math.round(v));
 }
 
-/* Upgrades are infinite: no caps, and every tier N costs the same
-   regardless of which upgrade it is. */
-const tierCost = l => Math.round(20 * Math.pow(1.26, l));
+/* Upgrades are infinite, and every tier N costs the same regardless of
+   which upgrade it is. Costs scale only barely (×1.10/tier) so deep
+   tiers stay affordable instead of hitting a wall. */
+const tierCost = l => Math.round(20 * Math.pow(1.10, l));
 
 /* Winning levels back to back multiplies the coins you earn:
    +20% per consecutive win, up to x3. A death resets it. */
